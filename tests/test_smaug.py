@@ -3,7 +3,7 @@ import json
 import testing.postgresql
 import psycopg2
 
-from hoard import app
+from smaug import app
 from sql.schema import CREATE_REGISTRATIONS_TABLE_SQL, CREATE_USERS_TABLE_SQL
 
 
