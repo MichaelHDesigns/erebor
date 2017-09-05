@@ -3,12 +3,14 @@ from functools import wraps
 from hashlib import sha1
 import hmac
 import logging
+import os
 
 from sanic import Sanic, response
 from sanic.config import LOGGING
 import testing.postgresql
 import psycopg2
 import psycopg2.extras
+
 
 app = Sanic()
 
@@ -99,7 +101,7 @@ def authorized():
                 user_ids = cur.fetchone()
                 if user_ids is not None:
                     request['session'] = {'user_id': user_ids[0],
-                                          'user_uid': user_ids[1]} 
+                                          'user_uid': user_ids[1]}
                     request['db'] = cur
                     res = await f(request, *args, **kwargs)
                     return res
@@ -156,7 +158,8 @@ async def user(request, user_uid):
             return response.json({'errors': ['Missing fields']}, status=400)
         full_name = request.json['full_name']
         email_address = request.json['email_address']
-        request['db'].execute(UPDATE_USER_SQL, (full_name, email_address, user_uid))
+        request['db'].execute(UPDATE_USER_SQL,
+                              (full_name, email_address, user_uid))
         app.db.commit()
         return response.HTTPResponse(body=None, status=200)
 
@@ -168,7 +171,7 @@ async def login(request):
     db = app.db.cursor()
     db.execute(PASSWORD_ACCESS_SQL, (password, email_address))
     login = db.fetchone()
-    if login: 
+    if login:
         access, user_id = login
         if access:
             api_key = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
@@ -200,15 +203,27 @@ async def change_password(request):
     if login:
         access, user_id = login
         if user_id != request['session']['user_id']:
-            logging.warn('Permissions issue: user ID:%s target user ID: %s' %
-                     (request['session']['user_id'], user_id))
+            logging.warn(
+                'Permissions issue: user ID:%s target user ID: %s' %
+                (request['session']['user_id'], user_id))
             return response.json({'errors': ['Password error']}, status=403)
         elif access:
             new_password = request.json.get('new_password')
             request['db'].execute(CHANGE_PASSWORD_SQL, (new_password, user_id))
-            return response.json({'success': ['Your password has been changed']})
+            return response.json(
+                {'success': ['Your password has been changed']})
     return response.json({'errors': ['Password error']}, status=403)
 
 
+@app.route('/health', methods=['GET'])
+async def health_check(request):
+    return response.HTTPResponse(body=None, status=200)
+
+
 if __name__ == '__main__':
+    app.db = psycopg2.connect(dbname=os.environ.get('SMAUG_DB_NAME'),
+                              user=os.environ.get('SMAUG_DB_USER'),
+                              password=os.environ.get('SMAUG_DB_PASSWORD'),
+                              host=os.enivorn.get('SMAUG_DB_HOST'),
+                              port=5432)
     app.run(host='0.0.0.0', port=80, log_config=LOGGING)

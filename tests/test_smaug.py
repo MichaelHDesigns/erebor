@@ -19,6 +19,10 @@ class TestHoard(object):
         cur.execute(CREATE_USERS_TABLE_SQL)
         app.db.commit()
 
+    def test_health(self):
+        request, response = app.test_client.get('/health')
+        assert response.status == 200
+
     def test_registration(self):
         request, response = app.test_client.post(
             '/registration',
