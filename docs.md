@@ -6,34 +6,35 @@ Most endpoints require authentication. To authenticate a request, add a header c
 
 ### Users
 
-#### /registration/
-
-POST:
-  - full_name
-  - email_address
-  
-  Response: {'registration_id': UUID}
-
 #### /users/
 
 POST:
-  - registration_id
+  - first_name
+  - last_name
+  - phone_number
+  - email_address
   - password
-  
+
   Response: {'uid': UUID,
              'api_key': STRING,
              'email_address': STRING,
-             'full_name': STRING}
+             'first_name': STRING,
+             'last_name': STRING,
+             'phone_number': STRING}
 
 #### /users/{uid}/
 
 UPDATE:
-  - full_name
+  - first_name
+  - last_name
+  - phone_number
   - email_address
 
-GET:
+ GET:
   {'uid': UUID,
-   'full_name': STRING,
+   'first_name': STRING,
+   'last_name': STRING,
+   'phone_number': STRING,
    'email_address': STRING}
 
 #### /users/{uid}/wallet
@@ -48,7 +49,7 @@ POST:
   - password
   - email_address
   - new_password
-  
+
   Response: 200 OK, empty body
 
 #### /logout/
@@ -56,11 +57,11 @@ POST:
 POST (empty body)
 
   Response: 200 OK, empty body
-  
+
 #### /login/
 
 POST:
   - email_address
   - password
- 
+
   Response: {'api_key': UUID}

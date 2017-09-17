@@ -19,12 +19,6 @@ try:
 except Exception as e:
     print('Logging disabled: %s' % e)
 
-CREATE_REGISTRATION_SQL = """
-INSERT INTO registrations (full_name, email_address)
-VALUES (%s, %s)
-RETURNING *;
-""".strip()
-
 PASSWORD_ACCESS_SQL = """
 SELECT crypt(%s, password) = password AS accessed, id
 FROM users
@@ -32,14 +26,14 @@ WHERE email_address = %s
 """.strip()
 
 SELECT_USER_SQL = """
-SELECT uid, full_name, email_address
+SELECT uid, first_name, last_name, phone_number, email_address
 FROM users
 WHERE uid = %s
 """.strip()
 
 UPDATE_USER_SQL = """
 UPDATE users
-SET full_name = %s, email_address = %s
+SET first_name = %s, last_name = %s, phone_number = %s, email_address = %s
 WHERE uid = %s
 """.strip()
 
@@ -48,10 +42,10 @@ WITH x AS (
   SELECT %s::text as password,
     gen_salt('bf')::text AS salt
 )
-INSERT INTO users (password, salt, full_name, email_address, api_key)
-SELECT crypt(x.password, x.salt), x.salt, r.full_name, r.email_address, %s
-FROM x, registrations r
-WHERE r.uid = (%s)
+INSERT INTO users (password, salt, first_name, last_name, email_address,
+                   phone_number, api_key)
+SELECT crypt(x.password, x.salt), x.salt, %s, %s, %s, %s, %s
+FROM x
 RETURNING *
 """.strip()
 
@@ -111,29 +105,20 @@ def authorized():
     return decorator
 
 
-@app.route('/registration', methods=['POST'])
-async def registration(request):
-    if request.json.keys() != {'full_name', 'email_address'}:
-        return response.json({'errors': ['Missing fields']},
-                             status=400)
-    db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    full_name = request.json['full_name']
-    email_address = request.json['email_address']
-    db.execute(CREATE_REGISTRATION_SQL, (full_name, email_address,))
-    res = db.fetchone()
-    app.db.commit()
-    return response.json({'registration_id': res['uid']}, 201)
-
-
 @app.route('/users', methods=['POST'])
 async def users(request):
-    if request.json.keys() != {'registration_id', 'password'}:
+    if request.json.keys() != {'password', 'first_name', 'last_name',
+                               'email_address', 'phone_number'}:
         return response.json({'errors': ['Missing fields']}, status=400)
     api_key = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    registration_id = request.json['registration_id']
+    first_name = request.json['first_name']
+    last_name = request.json['last_name']
+    phone_number = request.json['phone_number']
+    email_address = request.json['email_address']
     password = request.json['password']
-    db.execute(CREATE_USER_SQL, (password, api_key, registration_id))
+    db.execute(CREATE_USER_SQL, (password, first_name, last_name,
+                                 email_address, phone_number, api_key))
     new_user = db.fetchone()
     # remove sensitive information
     new_user = {k: v for k, v in new_user.items() if k not in
@@ -153,12 +138,16 @@ async def user(request, user_uid):
     elif request.method == 'PUT':
         if user_uid != request['session']['user_uid']:
             return response.json({'errors': ['Unauthorized']}, 403)
-        if request.json.keys() != {'full_name', 'email_address'}:
+        if request.json.keys() != {'first_name', 'last_name', 'phone_number',
+                                   'email_address'}:
             return response.json({'errors': ['Missing fields']}, status=400)
-        full_name = request.json['full_name']
+        first_name = request.json['first_name']
+        last_name = request.json['last_name']
+        phone_number = request.json['phone_number']
         email_address = request.json['email_address']
         request['db'].execute(UPDATE_USER_SQL,
-                              (full_name, email_address, user_uid))
+                              (first_name, last_name, phone_number,
+                               email_address, user_uid))
         app.db.commit()
         return response.HTTPResponse(body=None, status=200)
 

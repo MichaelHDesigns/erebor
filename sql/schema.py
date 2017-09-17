@@ -12,8 +12,10 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     password TEXT,
     salt TEXT,
-    full_name TEXT,
+    first_name TEXT,
+    last_name TEXT,
     email_address TEXT,
+    phone_number TEXT,
     uid UUID DEFAULT uuid_generate_v4 (),
     api_key TEXT
 );
