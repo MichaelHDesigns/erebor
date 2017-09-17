@@ -244,9 +244,64 @@ class TestHoard(object):
             '/users', data=json.dumps({'registration_id': r_id,
                                        'password': 'test'}))
         larry_data = response.json
-        
+
         request, response = app.test_client.post(
             '/change_password',
+            headers={'Authorization': 'ApiKey ' + larry_data['api_key']},
+            data=json.dumps({'new_password': 'test2',
+                             'password': 'test',
+                             'email_address': 'bob@example.com'}))
+        assert response.status == 403
+
+    def test_get_wallet(self):
+        request, response = app.test_client.post(
+            '/registration',
+            data=json.dumps({'full_name': 'test',
+                             'email_address': 'test@example.com'}),
+            )
+        r_data = response.json
+        r_id = r_data['registration_id']
+
+        request, response = app.test_client.post(
+            '/users', data=json.dumps({'registration_id': r_id,
+                                       'password': 'test'}))
+        u_data = response.json
+
+        request, response = app.test_client.get(
+            '/users/{}/wallet'.format(u_data['uid']),
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+        assert response.status == 200
+
+    def test_wallet_permissions(self):
+        # B: Users can only get their own wallet
+        request, response = app.test_client.post(
+            '/registration',
+            data=json.dumps({'full_name': 'Bob Smith',
+                             'email_address': 'bob@example.com'}),
+            )
+        r_data = response.json
+        r_id = r_data['registration_id']
+
+        request, response = app.test_client.post(
+            '/users', data=json.dumps({'registration_id': r_id,
+                                       'password': 'test'}))
+        bob_data = response.json
+
+        request, response = app.test_client.post(
+            '/registration',
+            data=json.dumps({'full_name': 'Larry Ramsay',
+                             'email_address': 'larry@example.com'}),
+            )
+        r_data = response.json
+        r_id = r_data['registration_id']
+
+        request, response = app.test_client.post(
+            '/users', data=json.dumps({'registration_id': r_id,
+                                       'password': 'test'}))
+        larry_data = response.json
+
+        request, response = app.test_client.get(
+            '/users/{}/wallet'.format(bob_data['uid']),
             headers={'Authorization': 'ApiKey ' + larry_data['api_key']},
             data=json.dumps({'new_password': 'test2',
                              'password': 'test',

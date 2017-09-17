@@ -7,7 +7,6 @@ import os
 
 from sanic import Sanic, response
 from sanic.config import LOGGING
-import testing.postgresql
 import psycopg2
 import psycopg2.extras
 
@@ -213,6 +212,18 @@ async def change_password(request):
             return response.json(
                 {'success': ['Your password has been changed']})
     return response.json({'errors': ['Password error']}, status=403)
+
+
+@app.route('/users/<user_uid>/wallet', methods=['GET'])
+@authorized()
+async def get_wallet(request, user_uid):
+    if user_uid != request['session']['user_uid']:
+        return response.json({'errors': ['Unauthorized']}, 403)
+    else:
+        return response.json([{'symbol': 'OAR',
+                               'amount': 123.456789},
+                              {'symbol': 'BITB',
+                               'amount': 1.0}])
 
 
 @app.route('/health', methods=['GET'])
