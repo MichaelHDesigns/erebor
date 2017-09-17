@@ -36,6 +36,12 @@ GET:
    'full_name': STRING,
    'email_address': STRING}
 
+#### /users/{uid}/wallet
+
+GET:
+  {'symbol': STRING,
+   'amount': STRING}
+
 #### /change_password/
 
 POST:

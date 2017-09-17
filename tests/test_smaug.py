@@ -233,7 +233,6 @@ class TestHoard(object):
         request, response = app.test_client.post(
             '/users', data=json.dumps({'registration_id': r_id,
                                        'password': 'test'}))
-        bob_data = response.json
 
         request, response = app.test_client.post(
             '/registration',
@@ -274,6 +273,10 @@ class TestHoard(object):
             '/users/{}/wallet'.format(u_data['uid']),
             headers={'Authorization': 'ApiKey ' + u_data['api_key']})
         assert response.status == 200
+
+        wallet_data = response.json
+        for coin in wallet_data:
+            assert coin.keys() == {'symbol', 'amount'}
 
     def test_wallet_permissions(self):
         # B: Users can only get their own wallet

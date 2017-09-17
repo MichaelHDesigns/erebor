@@ -221,9 +221,9 @@ async def get_wallet(request, user_uid):
         return response.json({'errors': ['Unauthorized']}, 403)
     else:
         return response.json([{'symbol': 'OAR',
-                               'amount': 123.456789},
+                               'amount': '123.456789'},
                               {'symbol': 'BITB',
-                               'amount': 1.0}])
+                               'amount': '1.0'}])
 
 
 @app.route('/health', methods=['GET'])
