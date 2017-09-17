@@ -1,5 +1,5 @@
 CREATE_REGISTRATIONS_TABLE_SQL = """
-CREATE TABLE registrations (
+CREATE TABLE IF NOT EXISTS registrations (
     id SERIAL PRIMARY KEY,
     full_name TEXT,
     email_address TEXT,
@@ -8,7 +8,7 @@ CREATE TABLE registrations (
 """.strip()
 
 CREATE_USERS_TABLE_SQL = """
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     password TEXT,
     salt TEXT,
