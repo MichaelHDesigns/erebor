@@ -65,3 +65,26 @@ POST:
   - password
 
   Response: {'api_key': UUID}
+
+    OR if 2fa is enabled
+
+  Response: {'success': ['2FA has been sent']}
+
+#### /2fa/sms_login
+
+POST:
+  - email_address
+  - sms_verification
+
+  Response: {'api_key': UUID}
+
+#### /2fa/settings
+
+PUT:
+  - sms_2fa_enabled
+
+  Response: 200 OK, empty body
+
+GET:
+
+  Response: {'sms_2fa_enabled': BOOL}

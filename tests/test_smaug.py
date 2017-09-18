@@ -1,10 +1,11 @@
 import json
 
+import flexmock
 import testing.postgresql
 import psycopg2
 
 from smaug import app
-from sql.schema import CREATE_REGISTRATIONS_TABLE_SQL, CREATE_USERS_TABLE_SQL
+from sql.schema import CREATE_USERS_TABLE_SQL
 
 
 test_user_data = {'first_name': 'Testy',
@@ -22,7 +23,6 @@ class TestHoard(object):
         cur = app.db.cursor()
         cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
         cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
-        cur.execute(CREATE_REGISTRATIONS_TABLE_SQL)
         cur.execute(CREATE_USERS_TABLE_SQL)
         app.db.commit()
 
@@ -39,7 +39,8 @@ class TestHoard(object):
         u_data = response.json
 
         assert u_data.keys() == {'uid', 'api_key', 'first_name', 'last_name',
-                                 'email_address', 'phone_number'}
+                                 'email_address', 'phone_number',
+                                 'sms_2fa_enabled'}
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
@@ -53,7 +54,7 @@ class TestHoard(object):
             headers={'Authorization': 'ApiKey ' + u_data['api_key']})
         data = response.json
         assert data.keys() == {'uid', 'email_address', 'first_name',
-                               'last_name', 'phone_number'}
+                               'last_name', 'phone_number', 'sms_2fa_enabled'}
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
@@ -225,3 +226,84 @@ class TestHoard(object):
             headers={'Authorization': 'ApiKey ' + u_data['api_key']},
         )
         assert response.status == 403
+
+    def test_enable_sms_2fa(self):
+        # B: Users can see if sms-based 2fa is enabled
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(test_user_data))
+        u_data = response.json
+
+        request, response = app.test_client.get(
+            '/2fa/settings',
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+        assert response.json.keys() == {'sms_2fa_enabled'}
+
+        # B: 2fa is disabled by default
+        assert response.json['sms_2fa_enabled'] is False
+
+        # B: Users can enable sms-based 2fa
+        request, response = app.test_client.put(
+            '/2fa/settings',
+            data=json.dumps({'sms_2fa_enabled': True}),
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+
+        assert response.status == 200
+
+        request, response = app.test_client.get(
+            '/2fa/settings',
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+        assert response.json['sms_2fa_enabled'] is True
+
+        # B: Users can disable sms-based 2fa
+        request, response = app.test_client.put(
+            '/2fa/settings',
+            data=json.dumps({'sms_2fa_enabled': False}),
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+
+        assert response.status == 200
+
+        request, response = app.test_client.get(
+            '/2fa/settings',
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+
+        assert response.json['sms_2fa_enabled'] is False
+
+    def test_2fa_login(self):
+        # B: Users can see if sms-based 2fa is enabled
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(test_user_data))
+        u_data = response.json
+
+        request, response = app.test_client.put(
+            '/2fa/settings',
+            data=json.dumps({'sms_2fa_enabled': True}),
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+
+        request, response = app.test_client.post(
+            '/logout',
+            headers={'Authorization': 'ApiKey ' + u_data['api_key']})
+
+        import smaug
+        flexmock(smaug).should_receive('send_sms').and_return()
+
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({'email_address': test_user_data['email_address'],
+                             'password': test_user_data['password']}))
+        l_data = response.json
+        assert l_data == {'success': ['2FA has been sent']}
+
+        # Grab generated code
+        db = app.db.cursor()
+        db.execute(
+            'SELECT sms_verification FROM users WHERE email_address = %s',
+            (test_user_data['email_address'],))
+        result = db.fetchone()
+        sms_verification = result[0]
+
+        request, response = app.test_client.post(
+            '/2fa/sms_login',
+            data=json.dumps(
+                {'sms_verification': sms_verification,
+                 'email_address': test_user_data['email_address']}))
+        assert response.json.keys() == {'api_key'}
