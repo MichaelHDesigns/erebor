@@ -15,12 +15,6 @@ from twilio.rest import Client
 
 app = Sanic()
 
-try:
-    LOGGING['loggers']['network']['handlers'] = [
-        'accessTimedRotatingFile', 'errorTimedRotatingFile']
-except Exception as e:
-    print('Logging disabled: %s' % e)
-
 PASSWORD_ACCESS_SQL = """
 SELECT
   crypt(%s, password) = password AS accessed, id, sms_2fa_enabled, phone_number
@@ -303,6 +297,6 @@ if __name__ == '__main__':
     app.db = psycopg2.connect(dbname=os.environ.get('SMAUG_DB_NAME'),
                               user=os.environ.get('SMAUG_DB_USER'),
                               password=os.environ.get('SMAUG_DB_PASSWORD'),
-                              host=os.enivorn.get('SMAUG_DB_HOST'),
+                              host=os.environ.get('SMAUG_DB_HOST'),
                               port=5432)
-    app.run(host='0.0.0.0', port=80, log_config=LOGGING)
+    app.run(host='0.0.0.0', port=80)
