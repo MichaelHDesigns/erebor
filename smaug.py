@@ -7,7 +7,6 @@ import os
 import random
 
 from sanic import Sanic, response
-from sanic.config import LOGGING
 import psycopg2
 import psycopg2.extras
 from twilio.rest import Client
