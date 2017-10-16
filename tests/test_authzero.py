@@ -9,9 +9,9 @@ class TestAuthZero(TestSmaug):
 
     def test_create_account(self):
         db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        payload = {'user_id': 'auth0|12345',
+        payload = {'sub': 'auth0|12345',
                    'nickname': 'Test',
-                   'email': 'test@example.com'}
+                   'name': 'test@example.com'}
         user_ids, session_id = auth_zero_get_or_create_user(db, payload)
         assert len(user_ids) == 2
         assert user_ids[0] == 1
