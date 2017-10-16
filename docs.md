@@ -1,8 +1,9 @@
 ### Authentication
 
-Most endpoints require authentication. To authenticate a request, add a header containing the API key:
-
-"Authorization": "ApiKey KEY"
+Most endpoints require authentication. To authenticate a request, you can
+obtain a session_id HttpOnly cookie by creating a new user via the /users/
+endpoint,  using the /login/ endpoint, or sending a JWT to the /auth_zero/
+endpoint.
 
 ### Users
 
@@ -16,11 +17,11 @@ POST:
   - password
 
   Response: {'uid': UUID,
-             'api_key': STRING,
              'email_address': STRING,
              'first_name': STRING,
              'last_name': STRING,
              'phone_number': STRING}
+  Response Cookie: session_id
 
 #### /users/{uid}/
 
@@ -37,7 +38,7 @@ UPDATE:
    'phone_number': STRING,
    'email_address': STRING}
 
-#### /users/{uid}/wallet
+#### /users/{uid}/wallet/
 
 GET:
   {'symbol': STRING,
@@ -56,7 +57,7 @@ POST:
 
 POST (empty body)
 
-  Response: 200 OK, empty body
+  Response: {'success': ['Your session has been invalidated']}
 
 #### /login/
 
@@ -64,21 +65,23 @@ POST:
   - email_address
   - password
 
-  Response: {'api_key': UUID}
+  Response: {'success': ['Login successful']}
+  Response Cookie: session_id
 
     OR if 2fa is enabled
 
   Response: {'success': ['2FA has been sent']}
 
-#### /2fa/sms_login
+#### /2fa/sms_login/
 
 POST:
   - email_address
   - sms_verification
 
-  Response: {'api_key': UUID}
+  Response: {'success': ['Login successful']}
+  Response Cookie: session_id
 
-#### /2fa/settings
+#### /2fa/settings/
 
 PUT:
   - sms_2fa_enabled
@@ -88,3 +91,12 @@ PUT:
 GET:
 
   Response: {'sms_2fa_enabled': BOOL}
+
+#### /auth_zero/
+
+POST:
+  - id_token
+  - access_token
+
+  Response: {'success': ['Login successful']}
+  Response Cookie: session_id

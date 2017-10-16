@@ -12,7 +12,7 @@ setup(
     author_email="dan@hoardinvest.com",
 
     # Packages
-    packages=[],
+    packages=["smaug"],
 
     # Include additional files into the package
     include_package_data=True,
@@ -42,10 +42,11 @@ setup(
         "pyasn1==0.1.9",
         "PyJWT==1.3.0",
         "pytest==3.2.1",
+        "python-jose==1.4.0",
         "requests==2.18.4",
         "sanic==0.6.0",
+        "Sanic-Cors==0.6.0.2",
         "six==1.10.0",
-        "ssh-import-id==5.5",
         "testing.postgresql==1.3.0",
         "twilio==6.6.3",
         "urllib3==1.22",

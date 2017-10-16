@@ -5,14 +5,19 @@ import hmac
 import logging
 import os
 import random
+from urllib.request import urlopen
+import json
 
 from sanic import Sanic, response
+from sanic_cors import CORS, cross_origin
 import psycopg2
 import psycopg2.extras
 from twilio.rest import Client
+from jose import jwt
 
 
 app = Sanic()
+CORS(app, automatic_options=True)
 
 PASSWORD_ACCESS_SQL = """
 SELECT
@@ -49,9 +54,16 @@ WITH x AS (
     gen_salt('bf')::text AS salt
 )
 INSERT INTO users (password, salt, first_name, last_name, email_address,
-                   phone_number, api_key)
+                   phone_number, session_id)
 SELECT crypt(x.password, x.salt), x.salt, %s, %s, %s, %s, %s
 FROM x
+RETURNING *
+""".strip()
+
+CREATE_USER_AUTH0_SQL = """
+INSERT INTO users (password, salt, first_name, last_name, email_address,
+                   phone_number, session_id, external_id)
+VALUES (Null, Null, %s, '', %s, Null, %s, %s)
 RETURNING *
 """.strip()
 
@@ -69,18 +81,24 @@ WHERE id = %s
 USER_ID_SQL = """
 SELECT id, uid
 FROM users
-WHERE api_key = %s
+WHERE session_id = %s
+""".strip()
+
+USER_ID_AUTH0_SQL = """
+SELECT id, uid, session_id
+FROM users
+WHERE external_id = %s
 """.strip()
 
 LOGOUT_SQL = """
 UPDATE users
-SET api_key = NULL
+SET session_id = NULL
 WHERE uid = %s
 """.strip()
 
 LOGIN_SQL = """
 UPDATE users
-SET api_key = %s
+SET session_id = %s
 WHERE id = %s
 """.strip()
 
@@ -98,18 +116,77 @@ RETURNING users.id
 """.strip()
 
 
+# Format error response and append status code.
+class AuthError(Exception):
+    def __init__(self, error, status_code):
+        self.error = error
+        self.status_code = status_code
+
+
+def auth_zero_validate(token, access_token):
+    auth0_domain = os.environ.get('AUTH0_DOMAIN', 'oar-dev01.auth0.com')
+    jsonurl = urlopen("https://"+auth0_domain+"/.well-known/jwks.json")
+    jwks = json.loads(jsonurl.read().decode('utf8'))
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+    except Exception as e:
+        print(e)
+    rsa_key = {}
+    print('jwks: %s' % jwks)
+    print('unverified_header: %s' % unverified_header)
+    for key in jwks["keys"]:
+        if key["kid"] == unverified_header["kid"]:
+            rsa_key = {
+                "kty": key["kty"],
+                "kid": key["kid"],
+                "use": key["use"],
+                "n": key["n"],
+                "e": key["e"]
+            }
+    if rsa_key:
+        payload = jwt.decode(
+            token,
+            rsa_key,
+            algorithms=["RS256"],
+            audience=os.environ.get('API_AUDIENCE'),
+            issuer="https://"+auth0_domain+"/",
+            access_token=access_token
+        )
+    return payload
+
+
+def auth_zero_get_or_create_user(cur, payload):
+    first_name = payload['nickname']
+    email_address = payload['name']
+    session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
+    external_id = payload['sub']
+    cur.execute(USER_ID_AUTH0_SQL, (external_id,))
+    res = cur.fetchone()
+    if res:
+        user_ids = [res['id'], res['uid']]
+        session_id = res['session_id']
+        return user_ids, session_id
+    else:
+        cur.execute(CREATE_USER_AUTH0_SQL, (first_name,
+                                            email_address,
+                                            session_id,
+                                            external_id))
+        new_user = cur.fetchone()
+        new_user = {k: v for k, v in new_user.items() if k not in
+                    {'password', 'salt', 'sms_verification'}}
+        session_id = new_user.pop('session_id')
+        app.db.commit()
+        return (new_user['id'], new_user['uid']), session_id
+
+
 def authorized():
     def decorator(f):
         @wraps(f)
         async def decorated_function(request, *args, **kwargs):
             cur = app.db.cursor()
-            api_key_header = request.headers.get('authorization')
-            if api_key_header:
-                # Remove prefix from API key
-                api_key = api_key_header[7:]
-                cur.execute(
-                    USER_ID_SQL,
-                    (api_key,))
+            cookie = request.cookies.get('session_id')
+            if cookie:
+                cur.execute(USER_ID_SQL, (cookie,))
                 user_ids = cur.fetchone()
                 if user_ids is not None:
                     request['session'] = {'user_id': user_ids[0],
@@ -124,12 +201,28 @@ def authorized():
     return decorator
 
 
+@app.route('/auth_zero', methods=['POST', 'OPTIONS'])
+@cross_origin(app)
+async def auth_zero(request):
+    cur = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    id_token = request.json.get('id_token')
+    access_token = request.json.get('access_token')
+    payload = auth_zero_validate(id_token, access_token)
+    user_ids, session_id = auth_zero_get_or_create_user(cur, payload)
+    resp = response.redirect('/users/{}/wallet'.format(user_ids[1]))
+    resp.cookies['session_id'] = session_id
+    resp.cookies['session_id']['max-age'] = 86400
+    resp.cookies['session_id']['domain'] = '.hoardinvest.com'
+    resp.cookies['session_id']['httponly'] = True
+    return resp
+
+
 @app.route('/users', methods=['POST'])
 async def users(request):
     if request.json.keys() != {'password', 'first_name', 'last_name',
                                'email_address', 'phone_number'}:
         return response.json({'errors': ['Missing fields']}, status=400)
-    api_key = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
+    session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     first_name = request.json['first_name']
     last_name = request.json['last_name']
@@ -137,13 +230,19 @@ async def users(request):
     email_address = request.json['email_address']
     password = request.json['password']
     db.execute(CREATE_USER_SQL, (password, first_name, last_name,
-                                 email_address, phone_number, api_key))
+                                 email_address, phone_number, session_id))
     new_user = db.fetchone()
     # remove sensitive information
     new_user = {k: v for k, v in new_user.items() if k not in
-                {'password', 'salt', 'id', 'sms_verification'}}
+                {'password', 'salt', 'id', 'sms_verification', 'external_id'}}
+    session_id = new_user.pop('session_id')
     app.db.commit()
-    return response.json(new_user, status=201)
+    resp = response.json(new_user, status=201)
+    resp.cookies['session_id'] = session_id
+    resp.cookies['session_id']['max-age'] = 86400
+    resp.cookies['session_id']['domain'] = '.hoardinvest.com'
+    resp.cookies['session_id']['httponly'] = True
+    return resp
 
 
 @app.route('/users/<user_uid>', methods=['GET', 'PUT'])
@@ -183,11 +282,17 @@ async def two_factor_login(request):
     user_id = db.fetchone()
     if user_id is None:
         return response.json({'errors': ['Verification failed']})
-    api_key = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
+    session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db.execute(LOGIN_SQL,
-               (api_key, user_id))
+               (session_id, user_id))
     app.db.commit()
-    return response.json({'api_key': api_key}, status=200)
+    resp = response.json({'success': ['Login successful']}, status=200)
+    resp.cookies['session_id'] = session_id
+    # expire in one day
+    resp.cookies['session_id']['max-age'] = 86400
+    resp.cookies['session_id']['domain'] = '.hoardinvest.com'
+    resp.cookies['session_id']['httponly'] = True
+    return resp
 
 
 @app.route('/2fa/settings', methods=['GET', 'PUT'])
@@ -234,11 +339,17 @@ async def login(request):
                 send_sms(phone_number, code_2fa)
                 return response.json({'success': ['2FA has been sent']})
             else:
-                api_key = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
-                db.execute(LOGIN_SQL,
-                           (api_key, user_id))
+                session_id = hmac.new(uuid4().bytes,
+                                      digestmod=sha1).hexdigest()
+                db.execute(LOGIN_SQL, (session_id, user_id))
                 app.db.commit()
-                return response.json({'api_key': api_key}, status=200)
+                resp = response.json({'success': ['Login successful']},
+                                     status=200)
+                resp.cookies['session_id'] = session_id
+                resp.cookies['session_id']['max-age'] = 86400
+                resp.cookies['session_id']['domain'] = '.hoardinvest.com'
+                resp.cookies['session_id']['httponly'] = True
+                return resp
     return response.json({'errors': ['Invalid credentials']}, status=403)
 
 
@@ -248,7 +359,7 @@ async def logout(request):
     request['db'].execute(
         LOGOUT_SQL,
         (request['session']['user_uid'],))
-    return response.json({'success': 'Your API key has been invalidated'})
+    return response.json({'success': ['Your session has been invalidated']})
 
 
 @app.route('/change_password', methods=['POST'])
@@ -298,4 +409,4 @@ if __name__ == '__main__':
                               password=os.environ.get('SMAUG_DB_PASSWORD'),
                               host=os.environ.get('SMAUG_DB_HOST'),
                               port=5432)
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='0.0.0.0', port=8000)
