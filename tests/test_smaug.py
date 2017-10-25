@@ -1,11 +1,8 @@
 import json
 
 import flexmock
-import testing.postgresql
-import psycopg2
 
 from smaug.smaug import app
-from sql.schema import CREATE_USERS_TABLE_SQL
 
 from . import TestSmaug
 

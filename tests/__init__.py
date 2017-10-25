@@ -4,6 +4,7 @@ import psycopg2
 from smaug.smaug import app
 from sql.schema import CREATE_USERS_TABLE_SQL
 
+
 class TestSmaug(object):
 
     def setup_method(method):
