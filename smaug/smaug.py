@@ -19,6 +19,14 @@ from jose import jwt
 app = Sanic()
 CORS(app, automatic_options=True)
 
+INVITE_ACCESS_SQL = """
+SELECT place FROM invites WHERE email_address = %s;
+""".strip()
+
+SELECT_NOW_SERVING_SQL = """
+SELECT place FROM now_serving;
+""".strip()
+
 PASSWORD_ACCESS_SQL = """
 SELECT
   crypt(%s, password) = password AS accessed, id, sms_2fa_enabled, phone_number
@@ -201,6 +209,17 @@ def authorized():
     return decorator
 
 
+def check_invite(db, email_address):
+    db.execute(SELECT_NOW_SERVING_SQL)
+    now_serving = db.fetchone()['place']
+    db.execute(INVITE_ACCESS_SQL, (email_address,))
+    place = db.fetchone()['place']
+    if place is not None and now_serving is not None and place <= now_serving:
+        return True
+    else:
+        return False
+
+
 @app.route('/auth_zero', methods=['POST', 'OPTIONS'])
 @cross_origin(app)
 async def auth_zero(request):
@@ -208,6 +227,9 @@ async def auth_zero(request):
     id_token = request.json.get('id_token')
     access_token = request.json.get('access_token')
     payload = auth_zero_validate(id_token, access_token)
+    if check_invite(cur, payload['name']) is False:
+        return response.json(
+            {'errors': ['Please wait until your invite is ready']})
     user_ids, session_id = auth_zero_get_or_create_user(cur, payload)
     resp = response.redirect('/users/{}/wallet'.format(user_ids[1]))
     resp.cookies['session_id'] = session_id
@@ -228,6 +250,9 @@ async def users(request):
     last_name = request.json['last_name']
     phone_number = request.json['phone_number']
     email_address = request.json['email_address']
+    if check_invite(db, email_address) is False:
+        return response.json(
+            {'errors': ['Please wait until your invite is ready']})
     password = request.json['password']
     db.execute(CREATE_USER_SQL, (password, first_name, last_name,
                                  email_address, phone_number, session_id))

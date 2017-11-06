@@ -14,6 +14,9 @@ test_user_data = {'first_name': 'Testy',
 
 
 def new_user(app):
+    cur = app.db.cursor()
+    cur.execute('INSERT INTO invites (email_address) VALUES (%s);',
+                (test_user_data['email_address'],))
     request, response = app.test_client.post(
         '/users', data=json.dumps(test_user_data))
     u_data = response.json
@@ -192,7 +195,9 @@ class TestResources(TestSmaug):
     def test_wallet_permissions(self):
         # B: Users can only get their own wallet
         u_data, session_id = new_user(app)
-
+        cur = app.db.cursor()
+        cur.execute('INSERT INTO invites (email_address) VALUES (%s);',
+                    ("bob@example.com",))
         request, response = app.test_client.post(
             '/users',
             data=json.dumps({'first_name': 'Bob',

@@ -14,3 +14,19 @@ CREATE TABLE IF NOT EXISTS users (
     sms_2fa_enabled BOOL DEFAULT False
 );
 """.strip()
+
+CREATE_INVITES_TABLE_SQL = """
+CREATE TABLE invites (
+    id SERIAL PRIMARY KEY,
+    place SERIAL,
+    email_address TEXT,
+    referral UUID DEFAULT gen_random_uuid()
+);
+""".strip()
+
+CREATE_NOW_SERVING_TABLE_SQL = """
+CREATE TABLE now_serving (
+    id SERIAL PRIMARY KEY,
+    place INTEGER
+);
+""".strip()
