@@ -5,15 +5,12 @@ import hmac
 import logging
 import os
 import random
-from urllib.request import urlopen
-import json
 
 from sanic import Sanic, response
-from sanic_cors import CORS, cross_origin
+from sanic_cors import CORS
 import psycopg2
 import psycopg2.extras
 from twilio.rest import Client
-from jose import jwt
 
 
 app = Sanic()
@@ -60,13 +57,6 @@ FROM x
 RETURNING *
 """.strip()
 
-CREATE_USER_AUTH0_SQL = """
-INSERT INTO users (password, salt, first_name, last_name, email_address,
-                   phone_number, session_id, external_id)
-VALUES (Null, Null, %s, '', %s, Null, %s, %s)
-RETURNING *
-""".strip()
-
 CHANGE_PASSWORD_SQL = """
 WITH x AS (
   SELECT %s::text as password,
@@ -82,12 +72,6 @@ USER_ID_SQL = """
 SELECT id, uid
 FROM users
 WHERE session_id = %s
-""".strip()
-
-USER_ID_AUTH0_SQL = """
-SELECT id, uid, session_id
-FROM users
-WHERE external_id = %s
 """.strip()
 
 LOGOUT_SQL = """
@@ -116,69 +100,6 @@ RETURNING users.id
 """.strip()
 
 
-# Format error response and append status code.
-class AuthError(Exception):
-    def __init__(self, error, status_code):
-        self.error = error
-        self.status_code = status_code
-
-
-def auth_zero_validate(token, access_token):
-    auth0_domain = os.environ.get('AUTH0_DOMAIN', 'oar-dev01.auth0.com')
-    jsonurl = urlopen("https://"+auth0_domain+"/.well-known/jwks.json")
-    jwks = json.loads(jsonurl.read().decode('utf8'))
-    try:
-        unverified_header = jwt.get_unverified_header(token)
-    except Exception as e:
-        print(e)
-    rsa_key = {}
-    print('jwks: %s' % jwks)
-    print('unverified_header: %s' % unverified_header)
-    for key in jwks["keys"]:
-        if key["kid"] == unverified_header["kid"]:
-            rsa_key = {
-                "kty": key["kty"],
-                "kid": key["kid"],
-                "use": key["use"],
-                "n": key["n"],
-                "e": key["e"]
-            }
-    if rsa_key:
-        payload = jwt.decode(
-            token,
-            rsa_key,
-            algorithms=["RS256"],
-            audience=os.environ.get('API_AUDIENCE'),
-            issuer="https://"+auth0_domain+"/",
-            access_token=access_token
-        )
-    return payload
-
-
-def auth_zero_get_or_create_user(cur, payload):
-    first_name = payload['nickname']
-    email_address = payload['name']
-    session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
-    external_id = payload['sub']
-    cur.execute(USER_ID_AUTH0_SQL, (external_id,))
-    res = cur.fetchone()
-    if res:
-        user_ids = [res['id'], res['uid']]
-        session_id = res['session_id']
-        return user_ids, session_id
-    else:
-        cur.execute(CREATE_USER_AUTH0_SQL, (first_name,
-                                            email_address,
-                                            session_id,
-                                            external_id))
-        new_user = cur.fetchone()
-        new_user = {k: v for k, v in new_user.items() if k not in
-                    {'password', 'salt', 'sms_verification'}}
-        session_id = new_user.pop('session_id')
-        app.db.commit()
-        return (new_user['id'], new_user['uid']), session_id
-
-
 def authorized():
     def decorator(f):
         @wraps(f)
@@ -199,22 +120,6 @@ def authorized():
             return response.json({'errors': ['Not authorized']}, 403)
         return decorated_function
     return decorator
-
-
-@app.route('/auth_zero', methods=['POST', 'OPTIONS'])
-@cross_origin(app)
-async def auth_zero(request):
-    cur = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    id_token = request.json.get('id_token')
-    access_token = request.json.get('access_token')
-    payload = auth_zero_validate(id_token, access_token)
-    user_ids, session_id = auth_zero_get_or_create_user(cur, payload)
-    resp = response.redirect('/users/{}/wallet'.format(user_ids[1]))
-    resp.cookies['session_id'] = session_id
-    resp.cookies['session_id']['max-age'] = 86400
-    resp.cookies['session_id']['domain'] = '.hoardinvest.com'
-    resp.cookies['session_id']['httponly'] = True
-    return resp
 
 
 @app.route('/users', methods=['POST'])

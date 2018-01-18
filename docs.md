@@ -2,8 +2,7 @@
 
 Most endpoints require authentication. To authenticate a request, you can
 obtain a session_id HttpOnly cookie by creating a new user via the /users/
-endpoint,  using the /login/ endpoint, or sending a JWT to the /auth_zero/
-endpoint.
+endpoint, or using the /login/ endpoint.
 
 ### Users
 
@@ -91,12 +90,3 @@ PUT:
 GET:
 
   Response: {'sms_2fa_enabled': BOOL}
-
-#### /auth_zero/
-
-POST:
-  - id_token
-  - access_token
-
-  Response: {'success': ['Login successful']}
-  Response Cookie: session_id
