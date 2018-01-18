@@ -11,6 +11,9 @@ from sanic_cors import CORS
 import psycopg2
 import psycopg2.extras
 from twilio.rest import Client
+from smaug.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
+                          SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
+                          INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK)
 
 
 app = Sanic()
@@ -116,8 +119,8 @@ def authorized():
                     res = await f(request, *args, **kwargs)
                     return res
                 else:
-                    response.json({'errors': ['Invalid Api key']})
-            return response.json({'errors': ['Not authorized']}, 403)
+                    error_response([INVALID_API_KEY])
+            return error_response([UNAUTHORIZED])
         return decorated_function
     return decorator
 
@@ -126,7 +129,7 @@ def authorized():
 async def users(request):
     if request.json.keys() != {'password', 'first_name', 'last_name',
                                'email_address', 'phone_number'}:
-        return response.json({'errors': ['Missing fields']}, status=400)
+        return error_response([MISSING_FIELDS])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     first_name = request.json['first_name']
@@ -160,10 +163,10 @@ async def user(request, user_uid):
         return response.json(user)
     elif request.method == 'PUT':
         if user_uid != request['session']['user_uid']:
-            return response.json({'errors': ['Unauthorized']}, 403)
+            return error_response([UNAUTHORIZED])
         if request.json.keys() != {'first_name', 'last_name', 'phone_number',
                                    'email_address'}:
-            return response.json({'errors': ['Missing fields']}, status=400)
+            return error_response([MISSING_FIELDS])
         first_name = request.json['first_name']
         last_name = request.json['last_name']
         phone_number = request.json['phone_number']
@@ -178,7 +181,7 @@ async def user(request, user_uid):
 @app.route('/2fa/sms_login', methods=['POST'])
 async def two_factor_login(request):
     if request.json.keys() != {'sms_verification', 'email_address'}:
-        return response.json({'errors': ['Missing fields']})
+        return error_response([MISSING_FIELDS])
     db = app.db.cursor()
     sms_verification = request.json['sms_verification']
     email_address = request.json['email_address']
@@ -186,7 +189,7 @@ async def two_factor_login(request):
                (email_address, sms_verification))
     user_id = db.fetchone()
     if user_id is None:
-        return response.json({'errors': ['Verification failed']})
+        return error_response([SMS_VERIFICATION_FAILED])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db.execute(LOGIN_SQL,
                (session_id, user_id))
@@ -210,7 +213,7 @@ async def two_factor_settings(request):
         return response.json({'sms_2fa_enabled': settings[0]})
     elif request.method == 'PUT':
         if request.json.keys() != {'sms_2fa_enabled'}:
-            return response.json({'errors': ['Missing fields']}, status=400)
+            return error_response([MISSING_FIELDS])
         sms_2fa_enabled = request.json['sms_2fa_enabled']
         db = app.db.cursor()
         db.execute(UPDATE_2FA_SETTINGS_SQL,
@@ -255,7 +258,7 @@ async def login(request):
                 resp.cookies['session_id']['domain'] = '.hoardinvest.com'
                 resp.cookies['session_id']['httponly'] = True
                 return resp
-    return response.json({'errors': ['Invalid credentials']}, status=403)
+    return error_response([INVALID_CREDENTIALS])
 
 
 @app.route('/logout', methods=['POST'])
@@ -271,7 +274,7 @@ async def logout(request):
 @authorized()
 async def change_password(request):
     if request.json.keys() != {'new_password', 'password', 'email_address'}:
-        return response.json({'errors': ['Missing fields']}, status=400)
+        return error_response([MISSING_FIELDS])
     password = request.json.get('password')
     email_address = request.json.get('email_address')
     request['db'].execute(PASSWORD_ACCESS_SQL, (password, email_address))
@@ -282,15 +285,16 @@ async def change_password(request):
             logging.warn(
                 'Permissions issue: user ID:%s target user ID: %s' %
                 (request['session']['user_id'], user_id))
-            return response.json({'errors': ['Password error']}, status=403)
+            return error_response([PASSWORD_TARGET])
         elif access:
             new_password = request.json.get('new_password')
             request['db'].execute(CHANGE_PASSWORD_SQL, (new_password, user_id))
             return response.json(
                 {'success': ['Your password has been changed']})
-    return response.json({'errors': ['Password error']}, status=403)
+    return error_response([PASSWORD_CHECK])
 
 
+# DL: Remove this, no longer doing custodial wallet
 @app.route('/users/<user_uid>/wallet', methods=['GET'])
 @authorized()
 async def get_wallet(request, user_uid):
