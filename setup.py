@@ -5,7 +5,7 @@ setup(
     name="HoardSmaug",
 
     # Version number (initial):
-    version="0.2.2",
+    version="0.2.3",
 
     # Application author details:
     author="Dan Lipert",

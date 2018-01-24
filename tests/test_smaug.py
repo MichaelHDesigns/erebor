@@ -28,6 +28,13 @@ class TestResources(TestSmaug):
         request, response = app.test_client.get('/health')
         assert response.status == 200
 
+    def test_errors(self):
+        request, response = app.test_client.post(
+            '/users', data=json.dumps({'blah': 'blah'}))
+        e_data = response.json
+        assert e_data == {'errors': [{'message': 'Missing fields',
+                                     'code': 100}]}
+
     def test_create_account(self):
         u_data, session_id = new_user(app)
 

@@ -2,12 +2,12 @@ from sanic import response
 
 
 def error_response(errors, status=None):
-    response_data = []
+    error_data = []
     if not status:
         status = errors[0]['status']
     for error in errors:
-        response_data.append({k: error[k] for k in ('code', 'message')})
-    return response.json({'errors': [response_data]}, status=status)
+        error_data.append({k: error[k] for k in ('code', 'message')})
+    return response.json({'errors': error_data}, status=status)
 
 
 MISSING_FIELDS = {'code': 100, 'message': 'Missing fields', 'status': 400}
