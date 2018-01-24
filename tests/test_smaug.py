@@ -92,6 +92,10 @@ class TestResources(TestSmaug):
         new_cookies = response.cookies
         assert new_cookies.keys() == {'session_id'}
 
+        data = response.json
+        assert data.keys() == {'success', 'user_uid'}
+        assert len(data['user_uid']) == 36
+
         new_session_id = new_cookies['session_id'].value
         assert new_session_id != session_id
 
@@ -292,3 +296,6 @@ class TestResources(TestSmaug):
                 {'sms_verification': sms_verification,
                  'email_address': test_user_data['email_address']}))
         assert response.cookies.keys() == {'session_id'}
+        data = response.json
+        assert data.keys() == {'success', 'user_uid'}
+        assert len(data['user_uid']) == 36

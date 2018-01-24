@@ -21,7 +21,8 @@ CORS(app, automatic_options=True)
 
 PASSWORD_ACCESS_SQL = """
 SELECT
-  crypt(%s, password) = password AS accessed, id, sms_2fa_enabled, phone_number
+  crypt(%s, password) = password AS accessed, id, sms_2fa_enabled,
+  phone_number, uid
 FROM users
 WHERE email_address = %s
 """.strip()
@@ -99,7 +100,7 @@ VERIFY_SMS_LOGIN = """
 UPDATE users
 SET sms_verification = Null
 WHERE email_address = %s AND sms_verification = %s
-RETURNING users.id
+RETURNING users.id, users.uid
 """.strip()
 
 
@@ -187,14 +188,15 @@ async def two_factor_login(request):
     email_address = request.json['email_address']
     db.execute(VERIFY_SMS_LOGIN,
                (email_address, sms_verification))
-    user_id = db.fetchone()
+    user_id, user_uid = db.fetchone()
     if user_id is None:
         return error_response([SMS_VERIFICATION_FAILED])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db.execute(LOGIN_SQL,
                (session_id, user_id))
     app.db.commit()
-    resp = response.json({'success': ['Login successful']}, status=200)
+    resp = response.json({'success': ['Login successful'],
+                          'user_uid': user_uid}, status=200)
     resp.cookies['session_id'] = session_id
     # expire in one day
     resp.cookies['session_id']['max-age'] = 86400
@@ -239,7 +241,7 @@ async def login(request):
     db.execute(PASSWORD_ACCESS_SQL, (password, email_address))
     login = db.fetchone()
     if login:
-        access, user_id, sms_2fa, phone_number = login
+        access, user_id, sms_2fa, phone_number, user_uid = login
         if access:
             if sms_2fa:
                 code_2fa = str(random.randrange(100000, 999999))
@@ -251,7 +253,8 @@ async def login(request):
                                       digestmod=sha1).hexdigest()
                 db.execute(LOGIN_SQL, (session_id, user_id))
                 app.db.commit()
-                resp = response.json({'success': ['Login successful']},
+                resp = response.json({'success': ['Login successful'],
+                                      'user_uid': user_uid},
                                      status=200)
                 resp.cookies['session_id'] = session_id
                 resp.cookies['session_id']['max-age'] = 86400
@@ -280,7 +283,7 @@ async def change_password(request):
     request['db'].execute(PASSWORD_ACCESS_SQL, (password, email_address))
     login = request['db'].fetchone()
     if login:
-        access, user_id, sms_2fa, phone_number = login
+        access, user_id, sms_2fa, phone_number, _ = login
         if user_id != request['session']['user_id']:
             logging.warn(
                 'Permissions issue: user ID:%s target user ID: %s' %
