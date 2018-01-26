@@ -299,3 +299,23 @@ class TestResources(TestSmaug):
         data = response.json
         assert data.keys() == {'success', 'user_uid'}
         assert len(data['user_uid']) == 36
+
+    def test_ticker(self):
+        # B: Logged in users can access BTC/USD and ETH/USD pricing
+        u_data, session_id = new_user(app)
+
+        request, response = app.test_client.get(
+            '/ticker',
+            cookies={'session_id': session_id})
+        assert response.status == 200
+        data = response.json
+        assert data.keys() == {'btc_usd', 'eth_usd'}
+        # B: do it again to make sure caching works
+        request, response = app.test_client.get(
+            '/ticker',
+            cookies={'session_id': session_id})
+        assert response.status == 200
+
+        request, response = app.test_client.get(
+            '/ticker')
+        assert response.status == 403

@@ -1,6 +1,9 @@
 from uuid import uuid4
 from functools import wraps
 from hashlib import sha1
+from datetime import datetime as dt
+import datetime
+
 import hmac
 import logging
 import os
@@ -11,13 +14,48 @@ from sanic_cors import CORS
 import psycopg2
 import psycopg2.extras
 from twilio.rest import Client
+import requests
+
 from smaug.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                           SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
-                          INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK)
+                          INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
+                          TICKER_UNAVAILABLE)
 
 
 app = Sanic()
 CORS(app, automatic_options=True)
+
+btc_usd_latest = None
+eth_usd_latest = None
+ticker_last_update = None
+
+
+def refresh_ticker():
+    global btc_usd_latest
+    global eth_usd_latest
+    global ticker_last_update
+    if ticker_last_update is None or (dt.utcnow() > ticker_last_update +
+                                      datetime.timedelta(seconds=2)):
+        r_btc = requests.get('https://api.gdax.com/products/BTC-USD/ticker')
+        r_btc_data = r_btc.json()
+        if 'price' in r_btc_data.keys():
+            btc_usd_latest = r_btc_data['price']
+        else:
+            logging.error('GDAX BTC-USD ticker error: {}'.format(r_btc_data))
+            btc_usd_latest = None
+            eth_usd_latest = None
+            return
+        r_eth = requests.get('https://api.gdax.com/products/ETH-USD/ticker')
+        r_eth_data = r_eth.json()
+        if 'price' in r_eth_data.keys():
+            eth_usd_latest = r_eth_data['price']
+        else:
+            logging.error('GDAX ETH-USD ticker error: {}'.format(r_eth_data))
+            btc_usd_latest = None
+            eth_usd_latest = None
+            return
+        ticker_last_update = dt.utcnow()
+
 
 PASSWORD_ACCESS_SQL = """
 SELECT
@@ -308,6 +346,17 @@ async def get_wallet(request, user_uid):
                                'amount': '123.456789'},
                               {'symbol': 'BITB',
                                'amount': '1.0'}])
+
+
+@app.route('/ticker', methods=['GET'])
+@authorized()
+async def get_ticker(request):
+    refresh_ticker()
+    if btc_usd_latest and eth_usd_latest:
+        return response.json({'btc_usd': btc_usd_latest,
+                              'eth_usd': eth_usd_latest})
+    else:
+        return error_response([TICKER_UNAVAILABLE])
 
 
 @app.route('/health', methods=['GET'])
