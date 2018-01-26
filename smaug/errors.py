@@ -20,5 +20,3 @@ INVALID_API_KEY = {'code': 104, 'message': 'Invalid API key', 'status': 403}
 PASSWORD_TARGET = {'code': 901, 'message': 'Password target error',
                    'status': 403}
 PASSWORD_CHECK = {'code': 105, 'message': 'Password error', 'status': 403}
-TICKER_UNAVAILABLE = {'code': 106, 'message': 'Ticker currently unavailable',
-                      'status': 500}

@@ -90,12 +90,3 @@ PUT:
 GET:
 
   Response: {'sms_2fa_enabled': BOOL}
-
-### Ticker
-
-#### /ticker/
-
-GET:
-
-  Response {'btc_usd': USD Currency,
-            'eth_usd': USD Currency}
