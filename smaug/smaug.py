@@ -258,6 +258,7 @@ async def two_factor_settings(request):
         db = app.db.cursor()
         db.execute(UPDATE_2FA_SETTINGS_SQL,
                    (sms_2fa_enabled, request['session']['user_uid']))
+        app.db.commit()
         return response.HTTPResponse(body=None, status=200)
 
 
@@ -284,6 +285,7 @@ async def login(request):
             if sms_2fa:
                 code_2fa = str(random.randrange(100000, 999999))
                 db.execute(SET_2FA_CODE_SQL, (code_2fa, user_id))
+                app.db.commit()
                 send_sms(phone_number, code_2fa)
                 return response.json({'success': ['2FA has been sent']})
             else:
@@ -308,6 +310,7 @@ async def logout(request):
     request['db'].execute(
         LOGOUT_SQL,
         (request['session']['user_uid'],))
+    app.db.commit()
     return response.json({'success': ['Your session has been invalidated']})
 
 
@@ -330,6 +333,7 @@ async def change_password(request):
         elif access:
             new_password = request.json.get('new_password')
             request['db'].execute(CHANGE_PASSWORD_SQL, (new_password, user_id))
+            app.db.commit()
             return response.json(
                 {'success': ['Your password has been changed']})
     return error_response([PASSWORD_CHECK])
