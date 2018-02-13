@@ -3,7 +3,7 @@ from functools import wraps
 from hashlib import sha1
 from datetime import datetime as dt
 import datetime
-
+import json
 import hmac
 import logging
 import os
@@ -139,6 +139,17 @@ UPDATE users
 SET sms_verification = Null
 WHERE email_address = %s AND sms_verification = %s
 RETURNING users.id, users.uid
+""".strip()
+
+CREATE_IV_SQL = """
+INSERT INTO identity_verifications (user_uid, data)
+VALUES (%s, %s::json)
+""".strip()
+
+IV_RESULTS_SQL = """
+SELECT data
+FROM identity_verifications
+WHERE user_uid = %s
 """.strip()
 
 
@@ -361,6 +372,30 @@ async def get_ticker(request):
                               'eth_usd': eth_usd_latest})
     else:
         return error_response([TICKER_UNAVAILABLE])
+
+
+@app.route('/jumio_callback', methods=['POST'])
+async def jumio_callback(request):
+    form_data = request.form
+    user_uid = form_data.get('scanReference')
+    if user_uid:
+        cur = app.db.cursor()
+        cur.execute(CREATE_IV_SQL, (user_uid, json.dumps(form_data)))
+        app.db.commit()
+        return response.HTTPResponse(body=None, status=201)
+    else:
+        return response.HTTPResponse(body=None, status=400)
+
+
+@app.route('/jumio_results', methods=['GET'])
+@authorized()
+async def get_jumio_results(request):
+    request['db'].execute(IV_RESULTS_SQL, (request['session']['user_uid'],))
+    results = request['db'].fetchall()
+    if results:
+        return response.json({'results': [r[0] for r in results]})
+    else:
+        return response.HTTPResponse(body=None, status=200)
 
 
 @app.route('/health', methods=['GET'])

@@ -319,3 +319,56 @@ class TestResources(TestSmaug):
         request, response = app.test_client.get(
             '/ticker')
         assert response.status == 403
+
+    def test_jumio(self):
+        # B: Callbacks from Jumio can be parsed
+        u_data, session_id = new_user(app)
+
+        CALLBACK_UPLOADED = "timestamp=2017-06-06T12%3A06%3A49.016Z&scanReference={}&document=%7B%22type%22%3A%22SSC%22%2C%22country%22%3A%22AUT%22%2C%22images%22%3A%5B%22https%3A%2F%2Fretrieval.netverify.com%2Fapi%2Fnetverify%2Fv2%2Fdocuments%2Fxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx%2Fpages%2F1%22%5D%2C%22status%22%3A%22UPLOADED%22%7D&transaction=%7B%22customerId%22%3A%22CUSTOMERID%22%2C%22date%22%3A%222014-10-17T06%3A37%3A51.969Z%22%2C%22merchantScanReference%22%3A%22YOURSCANREFERENCE%22%2C%22source%22%3A%22DOC_SDK%22%2C%22status%22%3A%22DONE%22%7D"  # noqa
+        CALLBACK_SUCCESS = "timestamp=2017-06-06T12%3A06%3A49.016Z&scanReference={}&document=%7B%22type%22%3A%22SSC%22%2C%22country%22%3A%22USA%22%2C%22extractedData%22%3A%7B%22firstName%22%3A%22FIRSTNAME%22%2C%22lastName%22%3A%22LASTNAME%22%2C%22signatureAvailable%22%3Atrue%2C%22ssn%22%3A%22xxxxxxxxx%22%7D%2C%22images%22%3A%5B%22https%3A%2F%2Fretrieval.netverify.com%2Fapi%2Fnetverify%2Fv2%2Fdocuments%2Fxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx%2Fpages%2F1%22%5D%2C%22status%22%3A%22EXTRACTED%22%7D&transaction=%7B%22customerId%22%3A%22CUSTOMERID%22%2C%22date%22%3A%222014-10-17T06%3A37%3A51.969Z%22%2C%22merchantScanReference%22%3A%22YOURSCANREFERENCE%22%2C%22source%22%3A%22DOC_SDK%22%2C%22status%22%3A%22DONE%22%7D"  # noqa
+        CALLBACK_FAILURE = "timestamp=2017-06-06T12%3A06%3A49.016Z&scanReference={}&document=%7B%22type%22%3A%22SSC%22%2C%22country%22%3A%22USA%22%2C%22images%22%3A%5B%22https%3A%2F%2Fretrieval.netverify.com%2Fapi%2Fnetverify%2Fv2%2Fdocuments%2Fxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx%2Fpages%2F1%22%5D%2C%22status%22%3A%22DISCARDED%22%7D&transaction=%7B%22customerId%22%3A%22CUSTOMERID%22%2C%22date%22%3A%222014-10-17T06%3A37%3A51.969Z%22%2C%22merchantScanReference%22%3A%22YOURSCANREFERENCE%22%2C%22source%22%3A%22DOC_SDK%22%2C%22status%22%3A%22DONE%22%7D"  # noqa
+        request, response = app.test_client.post(
+            '/jumio_callback',
+            data=CALLBACK_UPLOADED.format(u_data['uid']),
+            headers={'content-type': 'application/x-www-form-urlencoded'})
+        assert response.status == 201
+
+        request, response = app.test_client.get(
+            '/jumio_results',
+            cookies={'session_id': session_id})
+        assert response.status == 200
+        data = response.json
+
+        assert len(data['results']) == 1
+        assert data['results'][0].keys() == {'timestamp', 'scanReference',
+                                             'document', 'transaction'}
+
+        request, response = app.test_client.post(
+            '/jumio_callback',
+            data=CALLBACK_SUCCESS.format(u_data['uid']),
+            headers={'content-type': 'application/x-www-form-urlencoded'})
+        assert response.status == 201
+
+        request, response = app.test_client.get(
+            '/jumio_results',
+            cookies={'session_id': session_id})
+        assert response.status == 200
+        data = response.json
+        assert len(data['results']) == 2
+        assert data['results'][1].keys() == {'timestamp', 'scanReference',
+                                             'document', 'transaction'}
+
+        request, response = app.test_client.post(
+            '/jumio_callback',
+            data=CALLBACK_FAILURE.format(u_data['uid']),
+            headers={'content-type': 'application/x-www-form-urlencoded'})
+        assert response.status == 201
+
+        request, response = app.test_client.get(
+            '/jumio_results',
+            cookies={'session_id': session_id})
+        assert response.status == 200
+        data = response.json
+        assert len(data['results']) == 3
+        assert data['results'][2].keys() == {'timestamp', 'scanReference',
+                                             'document', 'transaction'}

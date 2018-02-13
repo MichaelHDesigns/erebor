@@ -7,10 +7,18 @@ CREATE TABLE IF NOT EXISTS users (
     last_name TEXT,
     email_address TEXT,
     phone_number TEXT,
-    uid UUID DEFAULT uuid_generate_v4 (),
+    uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
     session_id TEXT,
     external_id TEXT,
     sms_verification TEXT DEFAULT Null,
     sms_2fa_enabled BOOL DEFAULT False
+);
+""".strip()
+
+CREATE_IV_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS identity_verifications (
+    id SERIAL PRIMARY KEY,
+    data JSON,
+    user_uid UUID REFERENCES users(uid)
 );
 """.strip()
