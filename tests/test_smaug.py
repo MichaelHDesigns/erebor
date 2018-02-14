@@ -44,6 +44,22 @@ class TestResources(TestSmaug):
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
+        # B: Users can have one account per email
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(test_user_data))
+        e_data = response.json
+        assert e_data.keys() == {'errors'}
+
+        # Doing this doesn't break the db connection
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['email_address'] = 'test2@example.com'
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        o_data = response.json
+        assert o_data.keys() == {'uid', 'first_name', 'last_name',
+                                 'email_address', 'phone_number',
+                                 'sms_2fa_enabled'}
+
     def test_get_user(self):
         u_data, session_id = new_user(app)
 

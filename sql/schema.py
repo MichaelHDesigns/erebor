@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     salt TEXT,
     first_name TEXT,
     last_name TEXT,
-    email_address TEXT,
+    email_address TEXT UNIQUE,
     phone_number TEXT,
     uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
     session_id TEXT,

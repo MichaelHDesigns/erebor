@@ -19,7 +19,7 @@ import requests
 from smaug.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                           SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
                           INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
-                          TICKER_UNAVAILABLE)
+                          TICKER_UNAVAILABLE, GENERIC_USER)
 
 
 app = Sanic()
@@ -187,8 +187,13 @@ async def users(request):
     phone_number = request.json['phone_number']
     email_address = request.json['email_address']
     password = request.json['password']
-    db.execute(CREATE_USER_SQL, (password, first_name, last_name,
-                                 email_address, phone_number, session_id))
+    try:
+        db.execute(CREATE_USER_SQL, (password, first_name, last_name,
+                                     email_address, phone_number, session_id))
+    except Exception as e:
+        logging.info('error creating user {}:{}'.format(email_address, e))
+        app.db.rollback()
+        return error_response([GENERIC_USER])
     new_user = db.fetchone()
     # remove sensitive information
     new_user = {k: v for k, v in new_user.items() if k not in
