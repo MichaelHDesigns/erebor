@@ -403,6 +403,27 @@ async def get_jumio_results(request):
         return response.HTTPResponse(body=None, status=200)
 
 
+@app.route('/ca_search', methods=['POST', 'GET'])
+@authorized()
+async def ca_search(request):
+    url = "https://api.complyadvantage.com/searches?api_key={}".format(
+        os.environ.get('COMPLY_ADVANTAGE_API_KEY'))
+    if request.method == 'POST':
+        ca_response = requests.post(url, request.json)
+    elif request.method == 'GET':
+        ca_response = requests.get(url)
+    return response.json(ca_response)
+
+
+@app.route('/ca_search/<search_id>', methods=['GET'])
+@authorized()
+async def ca_search_id(request, search_id):
+    url = "https://api.complyadvantage.com/searches/{}?api_key={}".format(
+        search_id, os.environ.get('COMPLY_ADVANTAGE_API_KEY'))
+    ca_response = requests.get(url)
+    return response.json(ca_response)
+
+
 @app.route('/health', methods=['GET'])
 async def health_check(request):
     return response.HTTPResponse(body=None, status=200)

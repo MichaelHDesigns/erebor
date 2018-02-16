@@ -1,0 +1,98 @@
+{
+  "content": {
+    "data": {
+      "id": 46,
+      "ref": "1495711341-Tu51KL9s",
+      "searcher_id": 1,
+      "assignee_id": 1,
+      "search_profile": {
+          "name": "My USA Profile 1",
+          "slug": "my-usa-profile-1"
+      },
+      "filters": {
+        "entity_type": "person",
+        "types": [
+          "sanction",
+          "warning"
+        ],
+        "birth_year": "1924",
+        "passport": "AD10095",
+        "exact_match": false,
+        "fuzziness": 0.6
+      },
+      "match_status": "potential_match",
+      "risk_level": "unknown",
+      "search_term": "Robert Mugabe",
+      "total_hits": 1,
+      "updated_at": "2015-06-18 16:52:42",
+      "created_at": "2015-06-18 16:52:42",
+      "tags": {
+          "name": "value"
+      },
+      "hits": [
+        {
+          "doc": {
+            "aka": [
+
+            ],
+            "associates": [
+              {
+                "name": "Grace Mugabe",
+                "association": "Spouse"
+              }
+            ],
+            "entity_type": "person",
+            "fields": [
+              {
+                "locale": "en",
+                "name": "Justification",
+                "source": "swiss-seco-list",
+                "value": "Head of Government and responsible for activities that seriously undermine democracy, respect for human rights and the rule of law."
+              },
+              {
+                "name": "Other Information",
+                "source": "swiss-seco-list",
+                "value": "President."
+              },
+              {
+                "name": "Date of Birth",
+                "source": "swiss-seco-list",
+                "tag": "date_of_birth",
+                "value": "1924"
+              }
+            ],
+            "first_name": "Mugabe",
+            "id": "RU4326M8GFUAHMF",
+            "last_name": "Gabriel",
+            "last_updated_utc": "2015-06-16T01:11:14Z",
+            "middle_names": "Robert",
+            "media": [
+              {
+                "date": "2015-10-08T00:00:00Z",
+                "pdf_url": "http://complyadvantage-pdf.s3.amazonaws.com/255949c2-7ff4-482e-a2d6-03904e2b7986.pdf",
+                "snippet": "Zimbabweans are struggling with inflation of more than 100,000 percent",
+                "title": "Zimbabwe court to rule on election results | Reuters",
+                "url": "http://www.reuters.com/article/2008/04/14/us-zimbabwe-election-idUSL0457212820080414"
+              }
+            ],
+            "name": "Mugabe Robert Gabriel",
+            "sources": [
+              "swiss-seco-list"
+            ],
+            "types": [
+              "sanction"
+            ]
+          },
+          "is_whitelisted": false,
+          "match_types": [
+            "name_exact",
+            "year_of_birth"
+          ],
+          "score": 3.511
+        }
+      ],
+      "share_url": "http://app.complyadvantage.com/public/search/1496748100-l9qHqbVF/64a6114f299b"
+    }
+  },
+  "status": "success"
+}

@@ -1,6 +1,7 @@
 import json
 
 import flexmock
+import requests
 
 from smaug.smaug import app
 
@@ -388,3 +389,29 @@ class TestResources(TestSmaug):
         assert len(data['results']) == 3
         assert data['results'][2].keys() == {'timestamp', 'scanReference',
                                              'document', 'transaction'}
+
+    def test_ca_bridge(self):
+        # B: Comply Advantage API bridge works
+        u_data, session_id = new_user(app)
+        ca_data = {
+            "search_term": "A Bad Company Ltd",
+            "fuzziness": 0.6,
+            "filters": {
+                "types": ["sanction", "warning"]
+            },
+            "tags": {
+                "name": "value"
+            },
+            "share_url": 1
+        }
+
+        with open('./tests/ca_mock.json') as ca_mock_file:
+            ca_mock_resp = json.load(ca_mock_file)
+            flexmock(requests).should_receive('post').and_return(ca_mock_resp)
+
+        request, response = app.test_client.post(
+            '/ca_search',
+            cookies={'session_id': session_id},
+            data=json.dumps(ca_data))
+
+        assert response.status == 200

@@ -91,6 +91,35 @@ GET:
 
   Response: {'sms_2fa_enabled': BOOL}
 
+### KYC/AML/Identity Verification
+
+#### /ca_search/
+
+Bridge to POST/GET /searches on Comply Advantage API
+
+POST:
+  - see Comply Advantage documentation
+
+  Response: 200 OK, body according to Comply Advantage documentation
+
+GET:
+
+  Response: 200 OK, body according to Comply Advantage documentation
+
+#### /ca_search/{search_id}/
+
+Bridge to GET /searches/{search_id}/ on Comply Advantage API
+
+GET:
+
+  Response: 200 OK, body according to Comply Advantage documentation
+
+#### /jumio_results/
+
+GET:
+
+  Response: {'results': [LIST OF JUMIO RESULTS]}
+
 ### Ticker
 
 #### /ticker/
