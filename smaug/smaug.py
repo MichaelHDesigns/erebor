@@ -355,19 +355,6 @@ async def change_password(request):
     return error_response([PASSWORD_CHECK])
 
 
-# DL: Remove this, no longer doing custodial wallet
-@app.route('/users/<user_uid>/wallet', methods=['GET'])
-@authorized()
-async def get_wallet(request, user_uid):
-    if user_uid != request['session']['user_uid']:
-        return response.json({'errors': ['Unauthorized']}, 403)
-    else:
-        return response.json([{'symbol': 'OAR',
-                               'amount': '123.456789'},
-                              {'symbol': 'BITB',
-                               'amount': '1.0'}])
-
-
 @app.route('/ticker', methods=['GET'])
 @authorized()
 async def get_ticker(request):

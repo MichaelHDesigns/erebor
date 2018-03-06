@@ -205,38 +205,6 @@ class TestResources(TestSmaug):
                              'email_address': 'bob@example.com'}))
         assert response.status == 403
 
-    def test_get_wallet(self):
-        u_data, session_id = new_user(app)
-
-        request, response = app.test_client.get(
-            '/users/{}/wallet'.format(u_data['uid']),
-            cookies={'session_id': session_id})
-        assert response.status == 200
-
-        wallet_data = response.json
-        for coin in wallet_data:
-            assert coin.keys() == {'symbol', 'amount'}
-
-    def test_wallet_permissions(self):
-        # B: Users can only get their own wallet
-        u_data, session_id = new_user(app)
-
-        request, response = app.test_client.post(
-            '/users',
-            data=json.dumps({'first_name': 'Bob',
-                             'last_name': 'Smith',
-                             'phone_number': '19876543232',
-                             'email_address': 'bob@example.com',
-                             'password': 'test'}),
-            )
-        bob_data = response.json
-
-        request, response = app.test_client.get(
-            '/users/{}/wallet'.format(bob_data['uid']),
-            cookies={'session_id': session_id}
-        )
-        assert response.status == 403
-
     def test_enable_sms_2fa(self):
         # B: Users can see if sms-based 2fa is enabled
         u_data, session_id = new_user(app)
