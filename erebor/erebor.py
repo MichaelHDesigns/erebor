@@ -16,10 +16,10 @@ import psycopg2.extras
 from twilio.rest import Client
 import requests
 
-from smaug.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
-                          SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
-                          INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
-                          TICKER_UNAVAILABLE, GENERIC_USER)
+from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
+                           SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
+                           INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
+                           TICKER_UNAVAILABLE, GENERIC_USER)
 
 
 app = Sanic()
@@ -417,9 +417,9 @@ async def health_check(request):
 
 
 if __name__ == '__main__':
-    app.db = psycopg2.connect(dbname=os.environ.get('SMAUG_DB_NAME'),
-                              user=os.environ.get('SMAUG_DB_USER'),
-                              password=os.environ.get('SMAUG_DB_PASSWORD'),
-                              host=os.environ.get('SMAUG_DB_HOST'),
+    app.db = psycopg2.connect(dbname=os.environ.get('EREBOR_DB_NAME'),
+                              user=os.environ.get('EREBOR_DB_USER'),
+                              password=os.environ.get('EREBOR_DB_PASSWORD'),
+                              host=os.environ.get('EREBOR_DB_HOST'),
                               port=5432)
     app.run(host='0.0.0.0', port=8000)

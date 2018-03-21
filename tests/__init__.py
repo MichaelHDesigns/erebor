@@ -1,11 +1,11 @@
 import testing.postgresql
 import psycopg2
 
-from smaug.smaug import app
+from erebor.erebor import app
 from sql.schema import CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL
 
 
-class TestSmaug(object):
+class TestErebor(object):
 
     def setup_method(method):
         method.postgresql = testing.postgresql.Postgresql()

@@ -2,17 +2,17 @@ from distutils.core import setup
 
 setup(
     # Application name:
-    name="HoardSmaug",
+    name="HoardErebor",
 
     # Version number (initial):
-    version="0.2.4",
+    version="0.3.0",
 
     # Application author details:
     author="Dan Lipert",
     author_email="dan@hoardinvest.com",
 
     # Packages
-    packages=["smaug"],
+    packages=["erebor"],
 
     # Include additional files into the package
     include_package_data=True,
@@ -22,7 +22,7 @@ setup(
 
     #
     # license="LICENSE.txt",
-    description="Smaug backend",
+    description="Erebor backend",
 
     # long_description=open("README.txt").read(),
 

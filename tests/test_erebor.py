@@ -3,9 +3,9 @@ import json
 import flexmock
 import requests
 
-from smaug.smaug import app
+from erebor.erebor import app
 
-from . import TestSmaug
+from . import TestErebor
 
 test_user_data = {'first_name': 'Testy',
                   'last_name': 'McTestface',
@@ -23,7 +23,7 @@ def new_user(app):
     return u_data, session_id
 
 
-class TestResources(TestSmaug):
+class TestResources(TestErebor):
 
     def test_health(self):
         request, response = app.test_client.get('/health')
@@ -257,8 +257,8 @@ class TestResources(TestSmaug):
             '/logout',
             cookies={'session_id': session_id})
 
-        import smaug
-        flexmock(smaug.smaug).should_receive('send_sms').and_return()
+        import erebor
+        flexmock(erebor.erebor).should_receive('send_sms').and_return()
 
         request, response = app.test_client.post(
             '/login',
