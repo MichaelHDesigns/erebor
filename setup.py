@@ -1,11 +1,25 @@
 from distutils.core import setup
+from setuptools_scm import get_version as scm_version
+
+try:
+    from erebor_release import get_version_from_git
+
+    version = get_version_from_git()
+    if not version:
+        raise Exception("Invalid version format, aborting setup")
+except ImportError:
+    version = scm_version()
 
 setup(
     # Application name:
     name="HoardErebor",
 
     # Version number (initial):
+<<<<<<< HEAD
     version="0.3.1",
+=======
+    version=version,
+>>>>>>> version from git in setup
 
     # Application author details:
     author="Dan Lipert",
@@ -45,6 +59,8 @@ setup(
         "requests==2.18.4",
         "sanic==0.6.0",
         "Sanic-Cors==0.6.0.2",
+        "semantic-version==2.6.0",
+        "setuptools-scm==1.17.0",
         "six==1.10.0",
         "testing.postgresql==1.3.0",
         "twilio==6.6.3",
