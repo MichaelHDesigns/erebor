@@ -52,7 +52,7 @@ setup(
         "pyasn1==0.1.9",
         "pytest==3.2.1",
         "requests==2.18.4",
-        "sanic==0.6.0",
+        "sanic==0.7.0",
         "Sanic-Cors==0.6.0.2",
         "semantic-version==2.6.0",
         "setuptools-scm==1.17.0",

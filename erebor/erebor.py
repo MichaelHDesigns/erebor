@@ -10,6 +10,7 @@ import os
 import random
 
 from sanic import Sanic, response
+from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
 import psycopg2
 import psycopg2.extras
@@ -21,8 +22,10 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
                            TICKER_UNAVAILABLE, GENERIC_USER)
 from erebor.email import send_signup_email
+from erebor.logs import logging_config
 
-app = Sanic()
+app = Sanic(log_config=logging_config
+            if not os.getenv('erebor_test') else LOGGING_CONFIG_DEFAULTS)
 CORS(app, automatic_options=True)
 
 btc_usd_latest = None
@@ -426,4 +429,7 @@ if __name__ == '__main__':
                               password=os.environ['EREBOR_DB_PASSWORD'],
                               host=os.environ['EREBOR_DB_HOST'],
                               port=5432)
-    app.run(host='0.0.0.0', port=8000)
+    app.run(host='0.0.0.0',
+            port=8000,
+            access_log=False if os.environ.get('EREBOR_ENV') == 'PROD'
+            else True)
