@@ -20,7 +20,7 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
                            TICKER_UNAVAILABLE, GENERIC_USER)
-
+from erebor.email import send_signup_email
 
 app = Sanic()
 CORS(app, automatic_options=True)
@@ -200,6 +200,8 @@ async def users(request):
                 {'password', 'salt', 'id', 'sms_verification', 'external_id'}}
     session_id = new_user.pop('session_id')
     app.db.commit()
+    send_signup_email(email_address,
+                      '{} {}'.format(first_name, last_name))
     resp = response.json(new_user, status=201)
     resp.cookies['session_id'] = session_id
     resp.cookies['session_id']['max-age'] = 86400

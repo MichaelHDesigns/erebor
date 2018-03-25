@@ -1,7 +1,9 @@
 import testing.postgresql
 import psycopg2
+import flexmock
 
 from erebor.erebor import app
+from erebor.email import boto3, AWS_REGION
 from sql.schema import CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL
 
 
@@ -16,6 +18,14 @@ class TestErebor(object):
         cur.execute(CREATE_USERS_TABLE_SQL)
         cur.execute(CREATE_IV_TABLE_SQL)
         app.db.commit()
+
+        # mock SES
+        boto_response = {'ResponseMetadata': {'RequestId': '12345'}}
+        mock_boto3_client = flexmock(boto3.client(
+            'ses', region_name=AWS_REGION))
+        flexmock(mock_boto3_client).should_receive('send_email').and_return(
+            boto_response)
+        flexmock(boto3).should_receive("client").and_return(mock_boto3_client)
 
     def teardown_method(method):
         method.postgresql.stop()

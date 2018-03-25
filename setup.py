@@ -5,7 +5,7 @@ setup(
     name="HoardErebor",
 
     # Version number (initial):
-    version="0.3.0",
+    version="0.3.1",
 
     # Application author details:
     author="Dan Lipert",
@@ -30,6 +30,7 @@ setup(
     install_requires=[
         "aiohttp==2.2.5",
         "blinker==1.3",
+        "boto3==1.6.3",
         "chardet==2.3.0",
         "configobj==5.0.6",
         "flexmock==0.10.2",
