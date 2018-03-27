@@ -26,7 +26,7 @@ def new_user(app):
 class TestResources(TestErebor):
 
     def test_health(self):
-        request, response = app.test_client.get('/health')
+        request, response = app.test_client.head('/health')
         assert response.status == 200
 
     def test_errors(self):

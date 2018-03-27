@@ -413,7 +413,7 @@ async def ca_search_id(request, search_id):
     return response.json(ca_response)
 
 
-@app.route('/health', methods=['GET'])
+@app.route('/health', methods=['GET', 'HEAD'])
 async def health_check(request):
     return response.HTTPResponse(body=None, status=200)
 
