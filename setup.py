@@ -14,11 +14,7 @@ setup(
     name="HoardErebor",
 
     # Version number (initial):
-<<<<<<< HEAD
-    version="0.3.1",
-=======
     version=version,
->>>>>>> version from git in setup
 
     # Application author details:
     author="Dan Lipert",

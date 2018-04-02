@@ -22,12 +22,27 @@ def get_version_from_git():
     return git_version if semantic_version.validate(git_version) else False
 
 
+def branch_checker():
+    """
+    Retrieves current branch to ensure developer is on master.
+
+    return: branch: UTF-8 parsed string of the branch name, string
+    """
+    label = check_output(
+        ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
+    )
+    branch = label.strip().decode('UTF-8')
+    return branch == 'master'
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-mi', '--minor', action='store_true')
     parser.add_argument('-ma', '--major', action='store_true')
     parser.add_argument('-p', '--patch', action='store_true')
     args = vars(parser.parse_args())
+    if not branch_checker():
+        raise Exception("Checkout branch 'master' before proceeding.")
     git_version = get_version_from_git()
     git_version = semantic_version.Version(git_version)
 
