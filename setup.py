@@ -3,7 +3,6 @@ from setuptools_scm import get_version as scm_version
 
 try:
     from erebor_release import get_version_from_git
-
     version = get_version_from_git()
     if not version:
         raise Exception("Invalid version format, aborting setup")

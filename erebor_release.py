@@ -27,7 +27,6 @@ if __name__ == '__main__':
     parser.add_argument('-mi', '--minor', action='store_true')
     parser.add_argument('-ma', '--major', action='store_true')
     parser.add_argument('-p', '--patch', action='store_true')
-    parser.add_argument('-a', '--message', type=str)
     args = vars(parser.parse_args())
     git_version = get_version_from_git()
     git_version = semantic_version.Version(git_version)
@@ -39,7 +38,8 @@ if __name__ == '__main__':
         increment_type = 'patch'
         new_version = git_version.next_patch()
 
-    # One version argument supplied. Either "major": x.0.0 or "minor": 0.x.0
+    # One version argument supplied. Either "major": x.0.0, "minor": 0.x.0,
+    # or "patch": 0.0.x
     elif len(increment) == 1:
         increment_type = list(increment.keys())[0]
         new_version = getattr(git_version, 'next_' + increment_type)()
@@ -51,10 +51,5 @@ if __name__ == '__main__':
 
     repo = Repo()
     git = repo.git
-    if args['message']:
-        git.add('-A')
-        git.commit('-m {}'.format(args['message']))
-        git.push()
-
     git.tag(new_version, '-a', '-m', 'applied {}'.format(increment_type))
     git.push('origin', new_version)
