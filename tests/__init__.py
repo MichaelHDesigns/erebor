@@ -1,10 +1,12 @@
 import testing.postgresql
 import psycopg2
 import flexmock
+from os import environ
+environ['erebor_test'] = 'true'
 
-from erebor.erebor import app
-from erebor.email import boto3, AWS_REGION
-from sql.schema import CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL
+from erebor.erebor import app  # noqa
+from erebor.email import boto3, AWS_REGION  # noqa
+from sql.schema import CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL  # noqa
 
 
 class TestErebor(object):
