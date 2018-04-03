@@ -281,9 +281,9 @@ async def two_factor_settings(request):
 
 
 def send_sms(to_number, body):
-    account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
-    auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
-    twilio_number = os.environ.get('TWILIO_NUMBER')
+    account_sid = os.environ['TWILIO_ACCOUNT_SID']
+    auth_token = os.environ['TWILIO_AUTH_TOKEN']
+    twilio_number = os.environ['TWILIO_NUMBER']
     client = Client(account_sid, auth_token)
     client.api.messages.create(to_number,
                                from_=twilio_number,
@@ -292,8 +292,10 @@ def send_sms(to_number, body):
 
 @app.route('/login', methods=['POST'])
 async def login(request):
-    email_address = request.json.get('email_address')
-    password = request.json.get('password')
+    if request.json.keys() != {'email_address', 'password'}:
+        return error_response([MISSING_FIELDS])
+    email_address = request.json['email_address']
+    password = request.json['password']
     db = app.db.cursor()
     db.execute(PASSWORD_ACCESS_SQL, (password, email_address))
     login = db.fetchone()
@@ -337,8 +339,8 @@ async def logout(request):
 async def change_password(request):
     if request.json.keys() != {'new_password', 'password', 'email_address'}:
         return error_response([MISSING_FIELDS])
-    password = request.json.get('password')
-    email_address = request.json.get('email_address')
+    password = request.json['password']
+    email_address = request.json['email_address']
     request['db'].execute(PASSWORD_ACCESS_SQL, (password, email_address))
     login = request['db'].fetchone()
     if login:
@@ -349,7 +351,7 @@ async def change_password(request):
                 (request['session']['user_id'], user_id))
             return error_response([PASSWORD_TARGET])
         elif access:
-            new_password = request.json.get('new_password')
+            new_password = request.json['new_password']
             request['db'].execute(CHANGE_PASSWORD_SQL, (new_password, user_id))
             app.db.commit()
             return response.json(
@@ -419,9 +421,9 @@ async def health_check(request):
 
 
 if __name__ == '__main__':
-    app.db = psycopg2.connect(dbname=os.environ.get('EREBOR_DB_NAME'),
-                              user=os.environ.get('EREBOR_DB_USER'),
-                              password=os.environ.get('EREBOR_DB_PASSWORD'),
-                              host=os.environ.get('EREBOR_DB_HOST'),
+    app.db = psycopg2.connect(dbname=os.environ['EREBOR_DB_NAME'],
+                              user=os.environ['EREBOR_DB_USER'],
+                              password=os.environ['EREBOR_DB_PASSWORD'],
+                              host=os.environ['EREBOR_DB_HOST'],
                               port=5432)
     app.run(host='0.0.0.0', port=8000)
