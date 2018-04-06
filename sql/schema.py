@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     first_name TEXT,
     last_name TEXT,
     email_address TEXT UNIQUE,
+    receive_emails_enabled BOOL DEFAULT True,
     phone_number TEXT,
     uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
     session_id TEXT,

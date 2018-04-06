@@ -40,8 +40,8 @@ class TestResources(TestErebor):
         u_data, session_id = new_user(app)
 
         assert u_data.keys() == {'uid', 'first_name', 'last_name',
-                                 'email_address', 'phone_number',
-                                 'sms_2fa_enabled'}
+                                 'email_address', 'receive_emails_enabled',
+                                 'phone_number', 'sms_2fa_enabled'}
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
@@ -58,8 +58,8 @@ class TestResources(TestErebor):
             '/users', data=json.dumps(other_test_user_data))
         o_data = response.json
         assert o_data.keys() == {'uid', 'first_name', 'last_name',
-                                 'email_address', 'phone_number',
-                                 'sms_2fa_enabled'}
+                                 'email_address', 'receive_emails_enabled',
+                                 'phone_number', 'sms_2fa_enabled'}
 
     def test_get_user(self):
         u_data, session_id = new_user(app)
@@ -204,6 +204,52 @@ class TestResources(TestErebor):
                              'password': 'test',
                              'email_address': 'bob@example.com'}))
         assert response.status == 403
+
+    def test_email_preferences(self):
+        u_data, session_id = new_user(app)
+
+        # Users can check their email preferences
+        request, response = app.test_client.get(
+            '/email_preferences',
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert response.json.keys() == {'receive_emails_enabled'}
+
+        # Receiving emails are enabled by default
+        assert response.json['receive_emails_enabled'] is True
+
+        # Users can disable receiving emails
+        request, response = app.test_client.put(
+            '/email_preferences',
+            data=json.dumps({'receive_emails_enabled': False}),
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert response.json.keys() == {'success'}
+
+        request, response = app.test_client.get(
+            '/email_preferences',
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert response.json['receive_emails_enabled'] is False
+
+        # Users can re-enable receiving emails
+        request, response = app.test_client.put(
+            '/email_preferences',
+            data=json.dumps({'receive_emails_enabled': True}),
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert response.json.keys() == {'success'}
+
+        request, response = app.test_client.get(
+            '/email_preferences',
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert response.json['receive_emails_enabled'] is True
 
     def test_enable_sms_2fa(self):
         # B: Users can see if sms-based 2fa is enabled
@@ -383,3 +429,32 @@ class TestResources(TestErebor):
             data=json.dumps(ca_data))
 
         assert response.status == 200
+
+    def test_results_html(self):
+        u_data, session_id = new_user(app)
+
+        request, response = app.test_client.get(
+            '/result',
+            cookies={'session_id': session_id})
+
+        assert response.status == 404
+
+        request, response = app.test_client.get(
+            '/result/?action=unsubscribe&success=true',
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert b'You will no longer receive ' in response.body
+
+        request, response = app.test_client.get(
+            '/result/?action=unsubscribe&success=false',
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert b'You are still set to receive ' in response.body
+
+        request, response = app.test_client.get(
+            '/result/?action=unsubscribe',
+            cookies={'session_id': session_id})
+
+        assert response.status == 404

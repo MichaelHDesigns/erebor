@@ -1,6 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
 
+from erebor.render import signup_email_template
 
 AWS_REGION = "us-east-1"
 
@@ -11,18 +12,6 @@ SENDER = "do-not-reply@hoardinvest.com"
 BODY_TEXT = ("Welcome to Hoard!\r\n"
              "Hello {} - welcome to Hoard! Your account is now active!")
 
-BODY_HTML = """<html>
-<head></head>
-<body>
-  <h1>Welcome to Hoard</h1>
-  <p>
-    Hello {} - welcome to Hoard! Your account is now active! Visit us at
-    <a href="https://www.hoardinvest.com">HoardInvest.com</a>.
-  </p>
-</body>
-</html>
-"""
-
 # The character encoding for the email.
 CHARSET = "UTF-8"
 
@@ -30,6 +19,8 @@ CHARSET = "UTF-8"
 def send_signup_email(recipient_address, recipient_name):
     # Create a new SES resource and specify a region.
     client = boto3.client('ses', region_name=AWS_REGION)
+    BODY_HTML = signup_email_template.render(
+        recipient_name=recipient_name)
     try:
         response = client.send_email(
             Destination={
@@ -41,7 +32,7 @@ def send_signup_email(recipient_address, recipient_name):
                 'Body': {
                     'Html': {
                         'Charset': CHARSET,
-                        'Data': BODY_HTML.format(recipient_name),
+                        'Data': BODY_HTML,
                     },
                     'Text': {
                         'Charset': CHARSET,

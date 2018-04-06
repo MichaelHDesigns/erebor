@@ -85,6 +85,17 @@ GET:
 
   Response: {'sms_2fa_enabled': BOOL}
 
+#### /email_preferences/
+
+PUT:
+  - receive_emails_enabled
+
+  Response: 200 OK, empty body
+
+GET:
+
+  Response: {'receive_emails_enabled': BOOL}
+
 ### KYC/AML/Identity Verification
 
 #### /ca_search/

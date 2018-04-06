@@ -22,6 +22,8 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
                            TICKER_UNAVAILABLE, GENERIC_USER)
 from erebor.email import send_signup_email
+from erebor.render import (unsubscribe_template, response_template,
+                           RESPONSE_ACTIONS)
 from erebor.logs import logging_config
 
 app = Sanic(log_config=logging_config
@@ -88,6 +90,18 @@ UPDATE_USER_SQL = """
 UPDATE users
 SET first_name = %s, last_name = %s, phone_number = %s, email_address = %s
 WHERE id = %s
+""".strip()
+
+SELECT_EMAIL_PREFS_SQL = """
+SELECT receive_emails_enabled
+FROM users
+WHERE uid = %s
+""".strip()
+
+UPDATE_EMAIL_PREFS_SQL = """
+UPDATE users
+SET receive_emails_enabled = %s
+WHERE uid = %s
 """.strip()
 
 CREATE_USER_SQL = """
@@ -362,6 +376,27 @@ async def change_password(request):
     return error_response([PASSWORD_CHECK])
 
 
+@app.route('/email_preferences', methods=['PUT', 'GET'])
+@authorized()
+async def email_preferences(request):
+    if request.method == 'GET':
+        db = app.db.cursor()
+        db.execute(SELECT_EMAIL_PREFS_SQL, (request['session']['user_uid'],))
+        settings = db.fetchone()
+        return response.json({'receive_emails_enabled': settings[0]})
+    elif request.method == 'PUT':
+        if request.json.keys() != {'receive_emails_enabled'}:
+            return error_response([MISSING_FIELDS])
+        receive_emails_enabled = request.json['receive_emails_enabled']
+        db = app.db.cursor()
+        db.execute(UPDATE_EMAIL_PREFS_SQL,
+                   (receive_emails_enabled, request['session']['user_uid']))
+        app.db.commit()
+        return response.json(
+            {'success': ['Your email preferences have been updated']}
+        )
+
+
 @app.route('/ticker', methods=['GET'])
 @authorized()
 async def get_ticker(request):
@@ -416,6 +451,31 @@ async def ca_search_id(request, search_id):
         search_id, os.environ.get('COMPLY_ADVANTAGE_API_KEY'))
     ca_response = requests.get(url)
     return response.json(ca_response)
+
+
+@app.route('/unsubscribe')
+@authorized()
+async def unsubscribe(request):
+    return response.html(unsubscribe_template.render(
+        url="/email_preferences"))
+
+
+@app.route('/result', methods=['GET'])
+@authorized()
+async def result(request):
+    args = request.args
+    # Only allow for 2 url arguments: action and success
+    if len(args) > 2:
+        return response.HTTPResponse(body=None, status=404)
+    try:
+        args_action = args['action'][0]
+        args_result = args['success'][0]
+        action = RESPONSE_ACTIONS[args_action]
+        result = action[args_result]
+    except KeyError:
+        return response.HTTPResponse(body=None, status=404)
+    return response.html(response_template.render(
+        action=action, result=result))
 
 
 @app.route('/health', methods=['GET', 'HEAD'])

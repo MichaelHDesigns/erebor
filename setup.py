@@ -21,10 +21,11 @@ setup(
     author_email="dan@hoardinvest.com",
 
     # Packages
-    packages=["erebor"],
+    packages=["erebor", "erebor.templates"],
 
     # Include additional files into the package
     include_package_data=True,
+    package_data={'erebor.templates': ['*.html']},
 
     # Details
     url="http://www.hoardinvest.com",
@@ -43,6 +44,7 @@ setup(
         "chardet==2.3.0",
         "configobj==5.0.6",
         "flexmock==0.10.2",
+        "Jinja2==2.10",
         "jsonpatch==1.10",
         "jsonpointer==1.9",
         "MarkupSafe==0.23",
