@@ -69,25 +69,25 @@ WHERE email_address = %s
 """.strip()
 
 SELECT_2FA_SETTINGS_SQL = """
-SELECT sms_2fa_enabled FROM users WHERE uid = %s
+SELECT sms_2fa_enabled FROM users WHERE id = %s
 """.strip()
 
 UPDATE_2FA_SETTINGS_SQL = """
 UPDATE users
 SET sms_2fa_enabled = %s
-WHERE uid = %s
+WHERE id = %s
 """.strip()
 
 SELECT_USER_SQL = """
 SELECT uid, first_name, last_name, phone_number, email_address, sms_2fa_enabled
 FROM users
-WHERE uid = %s
+WHERE id = %s
 """.strip()
 
 UPDATE_USER_SQL = """
 UPDATE users
 SET first_name = %s, last_name = %s, phone_number = %s, email_address = %s
-WHERE uid = %s
+WHERE id = %s
 """.strip()
 
 CREATE_USER_SQL = """
@@ -122,7 +122,7 @@ WHERE session_id = %s
 LOGOUT_SQL = """
 UPDATE users
 SET session_id = NULL
-WHERE uid = %s
+WHERE id = %s
 """.strip()
 
 LOGIN_SQL = """
@@ -218,7 +218,7 @@ async def users(request):
 async def user(request, user_uid):
     if request.method == 'GET':
         db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        db.execute(SELECT_USER_SQL, (user_uid,))
+        db.execute(SELECT_USER_SQL, (request['session']['user_id'],))
         user = db.fetchone()
         return response.json(user)
     elif request.method == 'PUT':
@@ -233,7 +233,7 @@ async def user(request, user_uid):
         email_address = request.json['email_address']
         request['db'].execute(UPDATE_USER_SQL,
                               (first_name, last_name, phone_number,
-                               email_address, user_uid))
+                               email_address, request['session']['user_id']))
         app.db.commit()
         return response.HTTPResponse(body=None, status=200)
 
@@ -269,7 +269,7 @@ async def two_factor_login(request):
 async def two_factor_settings(request):
     if request.method == 'GET':
         db = app.db.cursor()
-        db.execute(SELECT_2FA_SETTINGS_SQL, (request['session']['user_uid'],))
+        db.execute(SELECT_2FA_SETTINGS_SQL, (request['session']['user_id'],))
         settings = db.fetchone()
         return response.json({'sms_2fa_enabled': settings[0]})
     elif request.method == 'PUT':
@@ -278,7 +278,7 @@ async def two_factor_settings(request):
         sms_2fa_enabled = request.json['sms_2fa_enabled']
         db = app.db.cursor()
         db.execute(UPDATE_2FA_SETTINGS_SQL,
-                   (sms_2fa_enabled, request['session']['user_uid']))
+                   (sms_2fa_enabled, request['session']['user_id']))
         app.db.commit()
         return response.HTTPResponse(body=None, status=200)
 
@@ -332,7 +332,7 @@ async def login(request):
 async def logout(request):
     request['db'].execute(
         LOGOUT_SQL,
-        (request['session']['user_uid'],))
+        (request['session']['user_id'],))
     app.db.commit()
     return response.json({'success': ['Your session has been invalidated']})
 
