@@ -1,58 +1,61 @@
 import boto3
 from botocore.exceptions import ClientError
 
-from erebor.render import signup_email_template
 
 AWS_REGION = "us-east-1"
 
-SUBJECT = "Welcome to Hoard, {}!"
+SIGNUP_SUBJECT = "Welcome to Hoard, {}!"
 
 SENDER = "do-not-reply@hoardinvest.com"
 
-BODY_TEXT = ("Welcome to Hoard!\r\n"
-             "Hello {} - welcome to Hoard! Your account is now active!")
+SIGNUP_BODY_TEXT = ("Welcome to Hoard!\r\n"
+                    "Hello {} - welcome to Hoard! Your account is now active!")
 
-# The character encoding for the email.
 CHARSET = "UTF-8"
 
 
-def send_signup_email(recipient_address, recipient_name):
-    # Create a new SES resource and specify a region.
-    client = boto3.client('ses', region_name=AWS_REGION)
-    BODY_HTML = signup_email_template.render(
-        recipient_name=recipient_name)
-    try:
-        response = client.send_email(
-            Destination={
-                'ToAddresses': [
-                    recipient_address,
-                ],
-            },
-            Message={
-                'Body': {
-                    'Html': {
-                        'Charset': CHARSET,
-                        'Data': BODY_HTML,
+class Email(object):
+    def __init__(self,
+                 recipient_address,
+                 subject,
+                 body_text,
+                 body_html):
+        self.recipient_address = recipient_address
+        self.subject = subject
+        self.body_text = body_text
+        self.body_html = body_html
+        self.client = boto3.client('ses', region_name=AWS_REGION)
+
+    def send(self):
+        try:
+            response = self.client.send_email(
+                Destination={
+                    'ToAddresses': [
+                        self.recipient_address,
+                    ],
+                },
+                Message={
+                    'Body': {
+                        'Html': {
+                            'Charset': CHARSET,
+                            'Data': self.body_html,
+                        },
+                        'Text': {
+                            'Charset': CHARSET,
+                            'Data': self.body_text,
+                        },
                     },
-                    'Text': {
+                    'Subject': {
                         'Charset': CHARSET,
-                        'Data': BODY_TEXT.format(recipient_name),
+                        'Data': self.subject,
                     },
                 },
-                'Subject': {
-                    'Charset': CHARSET,
-                    'Data': SUBJECT.format(recipient_name),
-                },
-            },
-            Source=SENDER,
-            # If you are not using a configuration set, comment or delete the
-            # following line
-            # ConfigurationSetName=CONFIGURATION_SET,
-        )
-    # Display an error if something goes wrong.
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-    else:
-        print("Email sent! Message ID:"),
-        print(response['ResponseMetadata']['RequestId'])
-        return response['ResponseMetadata']
+                Source=SENDER,
+            )
+        # Display an error if something goes wrong.
+        except ClientError as e:
+            print(e.response['Error']['Message'])
+        else:
+            print("Email sent! Message ID:"),
+            print(response['ResponseMetadata']['RequestId'])
+            return response['ResponseMetadata']

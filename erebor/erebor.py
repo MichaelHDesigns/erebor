@@ -21,9 +21,9 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
                            TICKER_UNAVAILABLE, GENERIC_USER)
-from erebor.email import send_signup_email
+from erebor.email import Email, SIGNUP_SUBJECT, SIGNUP_BODY_TEXT
 from erebor.render import (unsubscribe_template, response_template,
-                           RESPONSE_ACTIONS)
+                           signup_email_template, RESPONSE_ACTIONS)
 from erebor.logs import logging_config
 
 app = Sanic(log_config=logging_config
@@ -217,8 +217,14 @@ async def users(request):
                 {'password', 'salt', 'id', 'sms_verification', 'external_id'}}
     session_id = new_user.pop('session_id')
     app.db.commit()
-    send_signup_email(email_address,
-                      '{} {}'.format(first_name, last_name))
+    full_name = '{} {}'.format(first_name, last_name)
+    signup_email = Email(
+        email_address,
+        SIGNUP_SUBJECT.format(full_name),
+        SIGNUP_BODY_TEXT.format(full_name),
+        signup_email_template.render(recipient_name=full_name)
+    )
+    signup_email.send()
     resp = response.json(new_user, status=201)
     resp.cookies['session_id'] = session_id
     resp.cookies['session_id']['max-age'] = 86400
