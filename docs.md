@@ -119,7 +119,7 @@ GET:
 
   Response: 200 OK, body according to Comply Advantage documentation
 
-#### /jumio_results/
+#### /jumio_results/{scan_reference}/
 
 GET:
 

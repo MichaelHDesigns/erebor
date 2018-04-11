@@ -62,5 +62,6 @@ setup(
         "testing.postgresql==1.3.0",
         "twilio==6.6.3",
         "urllib3==1.22",
+        "zenpy==1.2.6",
     ],
 )

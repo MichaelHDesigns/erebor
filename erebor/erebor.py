@@ -16,6 +16,8 @@ import psycopg2
 import psycopg2.extras
 from twilio.rest import Client
 import requests
+from zenpy import Zenpy
+from zenpy.lib.api_objects import Ticket
 
 from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
@@ -60,6 +62,17 @@ def refresh_ticker():
             eth_usd_latest = None
             return
         ticker_last_update = dt.utcnow()
+
+
+def create_zendesk_ticket(ca_response, user_info):
+    zd_credentials = {'email': os.environ.get('ZD_EMAIL'),
+                      'token': os.environ.get('ZD_TOKEN'),
+                      'subdomain': os.environ.get('ZD_SUBDOMAIN')}
+    zenpy_client = Zenpy(**zd_credentials)
+    zenpy_client.tickets.create(
+        Ticket(subject="Comply Advantage Hit",
+               description=json.dumps({"user_info": user_info,
+                                       "ca_response": ca_response})))
 
 
 PASSWORD_ACCESS_SQL = """
@@ -159,14 +172,14 @@ RETURNING users.id, users.uid
 """.strip()
 
 CREATE_IV_SQL = """
-INSERT INTO identity_verifications (user_uid, data)
+INSERT INTO identity_verifications (scan_reference, data)
 VALUES (%s, %s::json)
 """.strip()
 
 IV_RESULTS_SQL = """
 SELECT data
 FROM identity_verifications
-WHERE user_uid = %s
+WHERE scan_reference = %s
 """.strip()
 
 
@@ -417,20 +430,20 @@ async def get_ticker(request):
 @app.route('/jumio_callback', methods=['POST'])
 async def jumio_callback(request):
     form_data = request.form
-    user_uid = form_data.get('scanReference')
-    if user_uid:
+    scan_reference = form_data.get('scanReference')
+    if scan_reference:
         cur = app.db.cursor()
-        cur.execute(CREATE_IV_SQL, (user_uid, json.dumps(form_data)))
+        cur.execute(CREATE_IV_SQL, (scan_reference, json.dumps(form_data)))
         app.db.commit()
         return response.HTTPResponse(body=None, status=201)
     else:
         return response.HTTPResponse(body=None, status=400)
 
 
-@app.route('/jumio_results', methods=['GET'])
+@app.route('/jumio_results/<scan_reference>', methods=['GET'])
 @authorized()
-async def get_jumio_results(request):
-    request['db'].execute(IV_RESULTS_SQL, (request['session']['user_uid'],))
+async def get_jumio_results(request, scan_reference):
+    request['db'].execute(IV_RESULTS_SQL, (scan_reference,))
     results = request['db'].fetchall()
     if results:
         return response.json({'results': [r[0] for r in results]})
@@ -445,9 +458,18 @@ async def ca_search(request):
         os.environ.get('COMPLY_ADVANTAGE_API_KEY'))
     if request.method == 'POST':
         ca_response = requests.post(url, request.json)
+        ca_response_json = ca_response.json()
+        hits = ca_response_json.get(
+            'content', {}).get('data', {}).get('total_hits')
+        if hits != 0:
+            db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            db.execute(SELECT_USER_SQL, (request['session']['user_id'],))
+            user_info = db.fetchone()
+            create_zendesk_ticket(ca_response, user_info)
+    # DL: Do we actually need to provide GET requests to the mobile app?
     elif request.method == 'GET':
         ca_response = requests.get(url)
-    return response.json(ca_response)
+    return response.json(ca_response_json)
 
 
 @app.route('/ca_search/<search_id>', methods=['GET'])

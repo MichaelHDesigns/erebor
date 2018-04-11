@@ -20,6 +20,6 @@ CREATE_IV_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS identity_verifications (
     id SERIAL PRIMARY KEY,
     data JSON,
-    user_uid UUID REFERENCES users(uid)
+    scan_reference TEXT
 );
 """.strip()
