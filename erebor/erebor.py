@@ -22,7 +22,7 @@ from zenpy.lib.api_objects import Ticket
 from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
-                           TICKER_UNAVAILABLE, GENERIC_USER)
+                           TICKER_UNAVAILABLE, GENERIC_USER, INVALID_PLATFORM)
 from erebor.email import Email, SIGNUP_SUBJECT, SIGNUP_BODY_TEXT
 from erebor.render import (unsubscribe_template, response_template,
                            signup_email_template, RESPONSE_ACTIONS)
@@ -35,6 +35,9 @@ CORS(app, automatic_options=True)
 btc_usd_latest = None
 eth_usd_latest = None
 ticker_last_update = None
+
+android_updates = {}
+ios_updates = {}
 
 
 def refresh_ticker():
@@ -504,6 +507,16 @@ async def result(request):
         return response.HTTPResponse(body=None, status=404)
     return response.html(response_template.render(
         action=action, result=result))
+
+
+@app.route('/updates/<platform>', methods=['GET'])
+async def updates(request, platform):
+    if platform == 'ios':
+        return response.json(ios_updates)
+    elif platform == 'android':
+        return response.json(android_updates)
+    else:
+        return error_response([INVALID_PLATFORM])
 
 
 @app.route('/health', methods=['GET', 'HEAD'])

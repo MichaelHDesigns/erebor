@@ -23,3 +23,4 @@ PASSWORD_CHECK = {'code': 105, 'message': 'Password error', 'status': 403}
 TICKER_UNAVAILABLE = {'code': 106, 'message': 'Ticker currently unavailable',
                       'status': 500}
 GENERIC_USER = {'code': 107, 'message': 'Error creating user', 'status': 400}
+INVALID_PLATFORM = {'code': 400, 'message': 'Invalid platform', 'status': 404}

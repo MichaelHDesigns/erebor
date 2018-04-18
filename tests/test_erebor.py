@@ -514,3 +514,19 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
 
         assert response.status == 404
+
+    def test_updates(self):
+        request, response = app.test_client.get('/updates/ios/')
+
+        assert response.status == 200
+
+        request, response = app.test_client.get('/updates/android/')
+
+        assert response.status == 200
+
+        request, response = app.test_client.get('/updates/blackberry/')
+
+        assert response.status == 404
+        e_data = response.json
+        assert e_data == {'errors': [{'message': 'Invalid platform',
+                                      'code': 400}]}

@@ -133,3 +133,26 @@ GET:
 
   Response {'btc_usd': USD Currency,
             'eth_usd': USD Currency}
+
+### Updates
+
+#### /updates/{platform}/
+
+A continually updated list of app updates, along with the criticality for
+updating each version. The versions here correspond to mobile app versions.
+The status is either 'critical', or 'normal'. If the user is using a version of
+the app marked as 'critical', the mobile app should cease operating until the
+user makes the update. If the current version is not listed, it is considered
+the latest version.
+
+The platform contained in the URI will either be 'ios' or 'android', and the
+response is particular to the platform submitted.
+
+GET:
+
+  Response {'1.0.0': 'critical',
+            '1.0.1': 'critical',
+            '1.1.0': 'critical',
+            '1.1.1': 'normal',
+            '1.2.0': 'normal',
+            '2.0.0': 'normal'}
