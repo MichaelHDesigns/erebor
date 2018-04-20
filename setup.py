@@ -40,7 +40,7 @@ setup(
     install_requires=[
         "aiohttp==2.2.5",
         "blinker==1.3",
-        "boto3==1.6.3",
+        "boto3==1.7.4",
         "chardet==2.3.0",
         "configobj==5.0.6",
         "flexmock==0.10.2",

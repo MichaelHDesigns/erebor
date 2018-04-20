@@ -18,6 +18,8 @@ from twilio.rest import Client
 import requests
 from zenpy import Zenpy
 from zenpy.lib.api_objects import Ticket
+import boto3
+from botocore.exceptions import ClientError
 
 from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
@@ -524,12 +526,45 @@ async def health_check(request):
     return response.HTTPResponse(body=None, status=200)
 
 
+def load_aws_secret(secret_name):
+    secret = None
+    endpoint_url = "https://secretsmanager.us-east-2.amazonaws.com"
+    region_name = "us-east-2"
+
+    session = boto3.session.Session()
+    client = session.client(
+        service_name='secretsmanager',
+        region_name=region_name,
+        endpoint_url=endpoint_url
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            print("The requested secret " + secret_name + " was not found")
+        elif e.response['Error']['Code'] == 'InvalidRequestException':
+            print("The request was invalid due to:", e)
+        elif e.response['Error']['Code'] == 'InvalidParameterException':
+            print("The request had invalid params:", e)
+    else:
+        if 'SecretString' in get_secret_value_response:
+            secret = get_secret_value_response['SecretString']
+    return json.loads(secret)
+
+
 if __name__ == '__main__':
-    app.db = psycopg2.connect(dbname=os.environ['EREBOR_DB_NAME'],
-                              user=os.environ['EREBOR_DB_USER'],
-                              password=os.environ['EREBOR_DB_PASSWORD'],
-                              host=os.environ['EREBOR_DB_HOST'],
-                              port=5432)
+    secret_name = os.environ['EREBOR_DB_AWS_SECRET']
+
+    if secret_name:
+        secret = load_aws_secret(secret_name)
+        app.db = psycopg2.connect(dbname=secret['dbname'],
+                                  user=secret['username'],
+                                  password=secret['password'],
+                                  host=secret['host'],
+                                  port=secret['port'])
     app.run(host='0.0.0.0',
             port=8000,
             access_log=False if os.environ.get('EREBOR_ENV') == 'PROD'
