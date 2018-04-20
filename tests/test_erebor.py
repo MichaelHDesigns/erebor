@@ -207,6 +207,77 @@ class TestResources(TestErebor):
                              'email_address': 'bob@example.com'}))
         assert response.status == 403
 
+    def test_reset_password(self):
+        u_data, session_id = new_user(app)
+
+        # Request for reset, email sent
+        request, response = app.test_client.post(
+            '/password',
+            data=json.dumps({'email_address': 'test@example.com'})
+        )
+        assert response.status == 200
+        assert response.json == {
+            'success': ['If our records match you will receive an email']
+        }
+
+        SELECT_RESET_TOKEN_SQL = """
+        SELECT reset_token, id
+        FROM reset_tokens
+        WHERE email_address = %s
+        """.strip()
+
+        # Grab the reset token generated for the user
+        test_db = app.db.cursor()
+        test_db.execute(SELECT_RESET_TOKEN_SQL, ('test@example.com',))
+        test_token, user_id = test_db.fetchone()
+
+        # URL with an invalid length returns invalid token error
+        request, response = app.test_client.get(
+            '/reset_password/{}'.format(test_token + 'a'))
+        assert response.status == 403
+        e_data = response.json
+        assert e_data == {
+            'errors': [{
+                'message': 'Reset token is either invalid or expired',
+                'code': 108
+            }]
+        }
+
+        # Valid reset token returns change password form
+        request, response = app.test_client.get(
+            '/reset_password/{}'.format(test_token))
+        assert response.status == 200
+
+        # User changes password with unique URL form
+        request, response = app.test_client.post(
+            '/reset_password/{}'.format(test_token),
+            data=json.dumps({'new_password': 'test_pw_reset'}))
+        assert response.status == 200
+
+        # Reset token has now been expired
+        request, response = app.test_client.get(
+            '/reset_password/{}'.format(test_token))
+        assert response.status == 403
+        e_data = response.json
+        assert e_data == {
+            'errors': [{
+                'message': 'Reset token is either invalid or expired',
+                'code': 108
+            }]
+        }
+
+        # User logins with new password
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({'email_address': test_user_data['email_address'],
+                             'password': 'test_pw_reset'}))
+        new_cookies = response.cookies
+        assert new_cookies.keys() == {'session_id'}
+
+        data = response.json
+        assert data.keys() == {'success', 'user_uid'}
+        assert len(data['user_uid']) == 36
+
     def test_email_preferences(self):
         u_data, session_id = new_user(app)
 

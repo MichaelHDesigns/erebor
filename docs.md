@@ -46,6 +46,24 @@ POST:
 
   Response: 200 OK, empty body
 
+#### /password/
+
+POST:
+  - email_address
+
+  Response: {'success': ['If our records match you will receive an email']}
+
+#### /reset_password/{token}/
+
+GET:
+
+  HTML Response: 200 OK, form template
+
+POST:
+  - new_password
+
+  Response: {'success': ['Your password has been changed']}
+
 #### /logout/
 
 POST (empty body)

@@ -24,10 +24,11 @@ from botocore.exceptions import ClientError
 from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
-                           TICKER_UNAVAILABLE, GENERIC_USER, INVALID_PLATFORM)
-from erebor.email import Email, SIGNUP_SUBJECT, SIGNUP_BODY_TEXT
-from erebor.render import (unsubscribe_template, response_template,
-                           signup_email_template, RESPONSE_ACTIONS)
+                           TICKER_UNAVAILABLE, GENERIC_USER, EXPIRED_TOKEN,
+                           INVALID_PLATFORM)
+from erebor.email import Email
+from erebor.render import (unsubscribe_template, result_template,
+                           password_template, RESULT_ACTIONS)
 from erebor.logs import logging_config
 
 app = Sanic(log_config=logging_config
@@ -87,6 +88,34 @@ SELECT
 FROM users
 WHERE email_address = %s
 """.strip()
+
+RESET_TOKEN_CREATION_SQL = """
+INSERT INTO reset_tokens
+    (id, reset_token, reset_token_creation_time,
+     email_address)
+SELECT
+     users.id, uuid_generate_v4(), CURRENT_TIMESTAMP,
+     users.email_address
+FROM users
+WHERE email_address = %s
+ON CONFLICT (id) DO UPDATE
+SET reset_token = uuid_generate_v4(),
+    reset_token_creation_time = CURRENT_TIMESTAMP
+RETURNING reset_token, email_address
+""".strip()
+
+SELECT_RESET_TOKEN_SQL = """
+SELECT email_address, id
+FROM reset_tokens
+WHERE reset_token = %s
+AND reset_token_creation_time + interval '1 hour' > %s
+""".strip()
+
+EXPIRE_RESET_TOKEN_SQL = """
+UPDATE reset_tokens
+SET reset_token = NULL
+WHERE reset_token = %s
+"""
 
 SELECT_2FA_SETTINGS_SQL = """
 SELECT sms_2fa_enabled FROM users WHERE id = %s
@@ -238,9 +267,8 @@ async def users(request):
     full_name = '{} {}'.format(first_name, last_name)
     signup_email = Email(
         email_address,
-        SIGNUP_SUBJECT.format(full_name),
-        SIGNUP_BODY_TEXT.format(full_name),
-        signup_email_template.render(recipient_name=full_name)
+        'signup',
+        full_name=full_name
     )
     signup_email.send()
     resp = response.json(new_user, status=201)
@@ -400,6 +428,49 @@ async def change_password(request):
     return error_response([PASSWORD_CHECK])
 
 
+@app.route('/password', methods=['POST'])
+async def password(request):
+    if request.json.keys() != {'email_address'}:
+        return error_response([MISSING_FIELDS])
+    email_address = request.json['email_address']
+    db = app.db.cursor()
+    db.execute(RESET_TOKEN_CREATION_SQL, (email_address,))
+    reset_token = db.fetchone()
+    if reset_token[0]:
+        app.db.commit()
+        reset_token = reset_token[0]
+        url = ("https://" + str(os.getenv("INSTANCE_HOST")) +
+               '/reset_password/{}'.format(reset_token))
+        reset_email = Email(email_address,
+                            "password_reset", url=url)
+        reset_email.send()
+    return response.json(
+        {'success': ['If our records match you will receive an email']}
+    )
+
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+async def reset_password(request, token):
+    if len(token) != 36:
+        return error_response([EXPIRED_TOKEN])
+    db = app.db.cursor()
+    db.execute(SELECT_RESET_TOKEN_SQL, (token, dt.now()))
+    data = db.fetchone()
+    if data is not None:
+        if request.method == 'GET':
+            return response.html(password_template.render(token=token))
+        elif request.method == 'POST':
+            new_password = request.json['new_password']
+            user_id = data[1]
+            db.execute(CHANGE_PASSWORD_SQL, (new_password, user_id))
+            db.execute(EXPIRE_RESET_TOKEN_SQL, (token,))
+            app.db.commit()
+            return response.json(
+                {'success': ['Your password has been changed']})
+    else:
+        return error_response([EXPIRED_TOKEN])
+
+
 @app.route('/email_preferences', methods=['PUT', 'GET'])
 @authorized()
 async def email_preferences(request):
@@ -494,7 +565,6 @@ async def unsubscribe(request):
 
 
 @app.route('/result', methods=['GET'])
-@authorized()
 async def result(request):
     args = request.args
     # Only allow for 2 url arguments: action and success
@@ -503,11 +573,11 @@ async def result(request):
     try:
         args_action = args['action'][0]
         args_result = args['success'][0]
-        action = RESPONSE_ACTIONS[args_action]
+        action = RESULT_ACTIONS[args_action]
         result = action[args_result]
     except KeyError:
         return response.HTTPResponse(body=None, status=404)
-    return response.html(response_template.render(
+    return response.html(result_template.render(
         action=action, result=result))
 
 

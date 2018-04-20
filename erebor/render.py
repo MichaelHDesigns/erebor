@@ -7,12 +7,20 @@ jinja_env = Environment(
 )
 
 unsubscribe_template = jinja_env.get_template('unsubscribe.html')
-signup_email_template = jinja_env.get_template('signup_email.html')
-response_template = jinja_env.get_template('response.html')
+signup_email_template = jinja_env.get_template('emails/signup_email.html')
+result_template = jinja_env.get_template('result.html')
+password_template = jinja_env.get_template('password.html')
+reset_password_email_template = jinja_env.get_template(
+    'emails/reset_password_email.html')
 
-RESPONSE_ACTIONS = {
+RESULT_ACTIONS = {
     'unsubscribe': {
         'true': 'You will no longer receive emails from Hoard.',
         'false': 'You are still set to receive emails from Hoard.'
+    },
+    'change_password': {
+        'true': 'Your password has been changed!',
+        'false': ('There was an error handling the request\n'
+                  'Your password has not bee changed')
     }
 }

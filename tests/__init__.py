@@ -6,7 +6,8 @@ environ['erebor_test'] = 'true'
 
 from erebor.erebor import app  # noqa
 from erebor.email import boto3, AWS_REGION  # noqa
-from sql.schema import CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL  # noqa
+from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
+                        CREATE_RESET_TOKENS_TABLE_SQL)  # noqa
 
 
 class TestErebor(object):
@@ -19,6 +20,7 @@ class TestErebor(object):
         cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
         cur.execute(CREATE_USERS_TABLE_SQL)
         cur.execute(CREATE_IV_TABLE_SQL)
+        cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
         app.db.commit()
 
         # mock SES

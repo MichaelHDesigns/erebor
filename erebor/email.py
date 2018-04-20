@@ -1,30 +1,44 @@
 import boto3
 from botocore.exceptions import ClientError
 
+from erebor.render import signup_email_template, reset_password_email_template
 
 AWS_REGION = "us-east-1"
 
-SIGNUP_SUBJECT = "Welcome to Hoard, {}!"
-
 SENDER = "do-not-reply@hoardinvest.com"
-
-SIGNUP_BODY_TEXT = ("Welcome to Hoard!\r\n"
-                    "Hello {} - welcome to Hoard! Your account is now active!")
 
 CHARSET = "UTF-8"
 
+EMAIL_TYPES = {
+    'signup': {
+        'subject': "Welcome to Hoard, {full_name}!",
+        'body_text': ("Welcome to Hoard!\r\n"
+                      "Hello {full_name} - welcome to Hoard! "
+                      "Your account is now active!"),
+        'body_html': signup_email_template
+    },
+    'password_reset': {
+        'subject': "Hoard - Reset Password",
+        'body_text': ("Hello - please visit this link to reset your password:"
+                      "\r\n{url}"),
+        'body_html': reset_password_email_template
+    }
+}
+
 
 class Email(object):
-    def __init__(self,
-                 recipient_address,
-                 subject,
-                 body_text,
-                 body_html):
+    def __init__(self, recipient_address, email_type, **kwargs):
         self.recipient_address = recipient_address
-        self.subject = subject
-        self.body_text = body_text
-        self.body_html = body_html
+        self.subject = EMAIL_TYPES[email_type]['subject']
+        self.body_text = EMAIL_TYPES[email_type]['body_text']
+        self.body_html = EMAIL_TYPES[email_type]['body_html']
         self.client = boto3.client('ses', region_name=AWS_REGION)
+        if kwargs:
+            self.subject = self.subject.format(**kwargs)
+            self.body_text = self.body_text.format(**kwargs)
+            self.body_html = self.body_html.render(**kwargs)
+        else:
+            self.body_html = self.body_html.render()
 
     def send(self):
         try:

@@ -21,11 +21,12 @@ setup(
     author_email="dan@hoardinvest.com",
 
     # Packages
-    packages=["erebor", "erebor.templates"],
+    packages=["erebor", "erebor.templates", "erebor.templates.emails"],
 
     # Include additional files into the package
     include_package_data=True,
-    package_data={'erebor.templates': ['*.html']},
+    package_data={'erebor.templates': ['*.html'],
+                  'erebor.templates.emails': ['*.html']},
 
     # Details
     url="http://www.hoardinvest.com",
