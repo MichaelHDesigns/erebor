@@ -48,10 +48,10 @@ if __name__ == '__main__':
 
     increment = {k: args[k] for k in args if args[k] is True}
 
-    # No version arguments supplied. Defaulting to "patch" 0.0.x
+    # No version arguments supplied. Defaulting to "minor" 0.x.0
     if not len(increment):
-        increment_type = 'patch'
-        new_version = git_version.next_patch()
+        increment_type = 'minor'
+        new_version = git_version.next_minor()
 
     # One version argument supplied. Either "major": x.0.0, "minor": 0.x.0,
     # or "patch": 0.0.x
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     # Multiple version arguments supplied. Unsupported
     else:
         raise Exception("Multiple version arguments detected." +
-                        " Please supply one or none to default to patch")
+                        " Please supply one or none to default to minor")
 
     repo = Repo()
     git = repo.git
