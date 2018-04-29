@@ -601,3 +601,27 @@ class TestResources(TestErebor):
         e_data = response.json
         assert e_data == {'errors': [{'message': 'Invalid platform',
                                       'code': 400}]}
+
+    def test_json_rpc(self):
+        u_data, session_id = new_user(app)
+
+        json_rpc_mock_resp_data = {'error': None, 'id': 0,
+                                   'result': ['echome!']}
+        json_rpc_mock_resp = flexmock(json=lambda: json_rpc_mock_resp_data)
+        flexmock(requests).should_receive('post').and_return(
+                 json_rpc_mock_resp)
+
+        payload = {
+            "method": "echo",
+            "params": ["echome!"],
+            "jsonrpc": "2.0",
+            "id": 0,
+        }
+
+        request, response = app.test_client.post(
+            '/jsonrpc',
+            data=json.dumps(payload),
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+        assert response.json == json_rpc_mock_resp_data

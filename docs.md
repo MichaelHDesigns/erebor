@@ -174,3 +174,15 @@ GET:
             '1.1.1': 'normal',
             '1.2.0': 'normal',
             '2.0.0': 'normal'}
+
+### JSON RPC Bitcoind Bridge
+
+#### /jsonrpc/
+
+POST:
+
+  JSON-RPC Payload (https://bitcoin.org/en/developer-reference#remote-procedure-calls-rpcs)
+
+  Response {'error': ERROR
+            'id': SUBMITTED ID
+            'result': [RESULTS]}

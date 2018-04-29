@@ -557,6 +557,17 @@ async def ca_search_id(request, search_id):
     return response.json(ca_response)
 
 
+@app.route('/jsonrpc', methods=['POST'])
+@authorized()
+async def json_rpc_bridge(request):
+    url = "http://hoard:bombadil@shenron.hoardinvest.com:8332"
+    headers = {'content-type': 'application/json'}
+    payload = request.json
+    rpc_response = requests.post(
+        url, data=json.dumps(payload), headers=headers)
+    return response.json(rpc_response.json())
+
+
 @app.route('/unsubscribe')
 @authorized()
 async def unsubscribe(request):
