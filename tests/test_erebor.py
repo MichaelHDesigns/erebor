@@ -31,6 +31,15 @@ class TestResources(TestErebor):
         request, response = app.test_client.head('/health')
         assert response.status == 200
 
+    def test_limiter(self):
+        for i in range(0, 49):
+            request, response = app.test_client.head('/health')
+            assert response.status == 200
+
+        # Now throttled after 50 requests in a minute
+        request, response = app.test_client.head('/health')
+        assert response.status == 429
+
     def test_errors(self):
         request, response = app.test_client.post(
             '/users', data=json.dumps({'blah': 'blah'}))

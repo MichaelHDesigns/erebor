@@ -27,3 +27,5 @@ INVALID_PLATFORM = {'code': 400, 'message': 'Invalid platform', 'status': 404}
 EXPIRED_TOKEN = {'code': 108,
                  'message': 'Reset token is either invalid or expired',
                  'status': 403}
+RATE_LIMIT_EXCEEDED = {'code': 429, 'message': 'Too many requests.',
+                       'status': 429}

@@ -12,6 +12,7 @@ import random
 from sanic import Sanic, response
 from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
+from sanic_limiter import Limiter, get_remote_address, RateLimitExceeded
 import psycopg2
 import psycopg2.extras
 from twilio.rest import Client
@@ -25,7 +26,7 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
                            TICKER_UNAVAILABLE, GENERIC_USER, EXPIRED_TOKEN,
-                           INVALID_PLATFORM)
+                           INVALID_PLATFORM, RATE_LIMIT_EXCEEDED)
 from erebor.email import Email
 from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
@@ -34,6 +35,10 @@ from erebor.logs import logging_config
 app = Sanic(log_config=logging_config
             if not os.getenv('erebor_test') else LOGGING_CONFIG_DEFAULTS)
 CORS(app, automatic_options=True)
+
+limiter = Limiter(app,
+                  global_limits=['50 per minute'],
+                  key_func=get_remote_address)
 
 btc_usd_latest = None
 eth_usd_latest = None
@@ -237,6 +242,11 @@ def authorized():
             return error_response([UNAUTHORIZED])
         return decorated_function
     return decorator
+
+
+@app.exception(RateLimitExceeded)
+def handle_429(request, exception):
+    return error_response([RATE_LIMIT_EXCEEDED])
 
 
 @app.route('/users', methods=['POST'])
