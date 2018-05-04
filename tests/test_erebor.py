@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import flexmock
 import requests
+import psycopg2
 
 from erebor import erebor
 from erebor.erebor import app
@@ -229,16 +230,18 @@ class TestResources(TestErebor):
             'success': ['If our records match you will receive an email']
         }
 
+        # Grab the reset token generated for the user
         SELECT_RESET_TOKEN_SQL = """
         SELECT reset_token, id
         FROM reset_tokens
         WHERE email_address = %s
         """.strip()
-
-        # Grab the reset token generated for the user
-        test_db = app.db.cursor()
-        test_db.execute(SELECT_RESET_TOKEN_SQL, ('test@example.com',))
-        test_token, user_id = test_db.fetchone()
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    SELECT_RESET_TOKEN_SQL,
+                    (test_user_data['email_address'],))
+                test_token, user_id = cur.fetchone()
 
         # URL with an invalid length returns invalid token error
         request, response = app.test_client.get(
@@ -396,11 +399,16 @@ class TestResources(TestErebor):
         assert l_data == {'success': ['2FA has been sent']}
 
         # Grab generated code
-        db = app.db.cursor()
-        db.execute(
-            'SELECT sms_verification FROM users WHERE email_address = %s',
-            (test_user_data['email_address'],))
-        result = db.fetchone()
+        TEST_SQL = """
+        SELECT sms_verification
+        FROM users WHERE email_address = %s
+        """.strip()
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    TEST_SQL,
+                    (test_user_data['email_address'],))
+                result = cur.fetchone()
         sms_verification = result[0]
 
         request, response = app.test_client.post(
@@ -456,8 +464,9 @@ class TestResources(TestErebor):
         data = response.json
 
         assert len(data['results']) == 1
-        assert data['results'][0].keys() == {'timestamp', 'scanReference',
-                                             'document', 'transaction'}
+        print(data['results'])
+        assert json.loads(data['results'][0]).keys() == {
+            'timestamp', 'scanReference', 'document', 'transaction'}
 
         request, response = app.test_client.post(
             '/jumio_callback',
@@ -471,8 +480,8 @@ class TestResources(TestErebor):
         assert response.status == 200
         data = response.json
         assert len(data['results']) == 2
-        assert data['results'][1].keys() == {'timestamp', 'scanReference',
-                                             'document', 'transaction'}
+        assert json.loads(data['results'][1]).keys() == {
+            'timestamp', 'scanReference', 'document', 'transaction'}
 
         # B: User can fail to scan their documents correctly
         scan_reference = uuid4()
@@ -490,8 +499,8 @@ class TestResources(TestErebor):
         data = response.json
 
         assert len(data['results']) == 1
-        assert data['results'][0].keys() == {'timestamp', 'scanReference',
-                                             'document', 'transaction'}
+        assert json.loads(data['results'][0]).keys() == {
+            'timestamp', 'scanReference', 'document', 'transaction'}
 
         request, response = app.test_client.post(
             '/jumio_callback',
@@ -505,8 +514,8 @@ class TestResources(TestErebor):
         assert response.status == 200
         data = response.json
         assert len(data['results']) == 2
-        assert data['results'][1].keys() == {'timestamp', 'scanReference',
-                                             'document', 'transaction'}
+        assert json.loads(data['results'][1]).keys() == {
+            'timestamp', 'scanReference', 'document', 'transaction'}
 
     def test_ca_bridge(self):
         # B: Comply Advantage API bridge works

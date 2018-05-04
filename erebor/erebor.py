@@ -13,8 +13,6 @@ from sanic import Sanic, response
 from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
 from sanic_limiter import Limiter, get_remote_address, RateLimitExceeded
-import psycopg2
-import psycopg2.extras
 from twilio.rest import Client
 import requests
 from zenpy import Zenpy
@@ -31,6 +29,7 @@ from erebor.email import Email
 from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
 from erebor.logs import logging_config
+from erebor.db import bp
 
 app = Sanic(log_config=logging_config
             if not os.getenv('erebor_test') else LOGGING_CONFIG_DEFAULTS)
@@ -88,10 +87,10 @@ def create_zendesk_ticket(ca_response, user_info):
 
 PASSWORD_ACCESS_SQL = """
 SELECT
-  crypt(%s, password) = password AS accessed, id, sms_2fa_enabled,
-  phone_number, uid
+  crypt($1, password) = password AS accessed, id, sms_2fa_enabled,
+  phone_number, uid::text
 FROM users
-WHERE email_address = %s
+WHERE email_address = $2
 """.strip()
 
 RESET_TOKEN_CREATION_SQL = """
@@ -102,7 +101,7 @@ SELECT
      users.id, uuid_generate_v4(), CURRENT_TIMESTAMP,
      users.email_address
 FROM users
-WHERE email_address = %s
+WHERE email_address = $1
 ON CONFLICT (id) DO UPDATE
 SET reset_token = uuid_generate_v4(),
     reset_token_creation_time = CURRENT_TIMESTAMP
@@ -112,113 +111,114 @@ RETURNING reset_token, email_address
 SELECT_RESET_TOKEN_SQL = """
 SELECT email_address, id
 FROM reset_tokens
-WHERE reset_token = %s
-AND reset_token_creation_time + interval '1 hour' > %s
+WHERE reset_token = $1
+AND reset_token_creation_time + interval '1 hour' > $2
 """.strip()
 
 EXPIRE_RESET_TOKEN_SQL = """
 UPDATE reset_tokens
 SET reset_token = NULL
-WHERE reset_token = %s
+WHERE reset_token = $1
 """
 
 SELECT_2FA_SETTINGS_SQL = """
-SELECT sms_2fa_enabled FROM users WHERE id = %s
+SELECT sms_2fa_enabled FROM users WHERE id = $1
 """.strip()
 
 UPDATE_2FA_SETTINGS_SQL = """
 UPDATE users
-SET sms_2fa_enabled = %s
-WHERE id = %s
+SET sms_2fa_enabled = $1
+WHERE id = $2
 """.strip()
 
 SELECT_USER_SQL = """
-SELECT uid, first_name, last_name, phone_number, email_address, sms_2fa_enabled
+SELECT uid::text, first_name, last_name, phone_number,
+       email_address, sms_2fa_enabled
 FROM users
-WHERE id = %s
+WHERE id = $1
 """.strip()
 
 UPDATE_USER_SQL = """
 UPDATE users
-SET first_name = %s, last_name = %s, phone_number = %s, email_address = %s
-WHERE id = %s
+SET first_name = $1, last_name = $2, phone_number = $3, email_address = $4
+WHERE id = $5
 """.strip()
 
 SELECT_EMAIL_PREFS_SQL = """
 SELECT receive_emails_enabled
 FROM users
-WHERE uid = %s
+WHERE id = $1
 """.strip()
 
 UPDATE_EMAIL_PREFS_SQL = """
 UPDATE users
-SET receive_emails_enabled = %s
-WHERE uid = %s
+SET receive_emails_enabled = $1
+WHERE id = $2
 """.strip()
 
 CREATE_USER_SQL = """
 WITH x AS (
-  SELECT %s::text as password,
+  SELECT $1::text as password,
     gen_salt('bf')::text AS salt
 )
 INSERT INTO users (password, salt, first_name, last_name, email_address,
                    phone_number, session_id)
-SELECT crypt(x.password, x.salt), x.salt, %s, %s, %s, %s, %s
+SELECT crypt(x.password, x.salt), x.salt, $2, $3, $4, $5, $6
 FROM x
 RETURNING *
 """.strip()
 
 CHANGE_PASSWORD_SQL = """
 WITH x AS (
-  SELECT %s::text as password,
+  SELECT $1::text as password,
     gen_salt('bf')::text AS salt
 )
 UPDATE users
 SET password = crypt(x.password, x.salt), salt = x.salt
 FROM x
-WHERE id = %s
+WHERE id = $2
 """.strip()
 
 USER_ID_SQL = """
-SELECT id, uid
+SELECT id, uid::text
 FROM users
-WHERE session_id = %s
+WHERE session_id = $1
 """.strip()
 
 LOGOUT_SQL = """
 UPDATE users
 SET session_id = NULL
-WHERE id = %s
+WHERE id = $1
 """.strip()
 
 LOGIN_SQL = """
 UPDATE users
-SET session_id = %s
-WHERE id = %s
+SET session_id = $1
+WHERE id = $2
 """.strip()
 
 SET_2FA_CODE_SQL = """
 UPDATE users
-SET sms_verification = %s
-WHERE id = %s
+SET sms_verification = $1
+WHERE id = $2
 """.strip()
 
 VERIFY_SMS_LOGIN = """
 UPDATE users
 SET sms_verification = Null
-WHERE email_address = %s AND sms_verification = %s
-RETURNING users.id, users.uid
+WHERE email_address = $1 AND sms_verification = $2
+RETURNING users.id, users.uid::text
 """.strip()
 
 CREATE_IV_SQL = """
 INSERT INTO identity_verifications (scan_reference, data)
-VALUES (%s, %s::json)
+VALUES ($1, $2::json)
 """.strip()
 
 IV_RESULTS_SQL = """
 SELECT data
 FROM identity_verifications
-WHERE scan_reference = %s
+WHERE scan_reference = $1
 """.strip()
 
 
@@ -226,15 +226,14 @@ def authorized():
     def decorator(f):
         @wraps(f)
         async def decorated_function(request, *args, **kwargs):
-            cur = app.db.cursor()
+            db = app.pg
             cookie = request.cookies.get('session_id')
             if cookie:
-                cur.execute(USER_ID_SQL, (cookie,))
-                user_ids = cur.fetchone()
+                user_ids = await db.fetchrow(USER_ID_SQL, cookie)
                 if user_ids is not None:
-                    request['session'] = {'user_id': user_ids[0],
-                                          'user_uid': user_ids[1]}
-                    request['db'] = cur
+                    request['session'] = {'user_id': user_ids['id'],
+                                          'user_uid': user_ids['uid']}
+                    request['db'] = app.pg
                     res = await f(request, *args, **kwargs)
                     return res
                 else:
@@ -255,25 +254,26 @@ async def users(request):
                                'email_address', 'phone_number'}:
         return error_response([MISSING_FIELDS])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
-    db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db = app.pg
     first_name = request.json['first_name']
     last_name = request.json['last_name']
     phone_number = request.json['phone_number']
     email_address = request.json['email_address']
     password = request.json['password']
     try:
-        db.execute(CREATE_USER_SQL, (password, first_name, last_name,
-                                     email_address, phone_number, session_id))
+        new_user = await db.fetchrow(
+            CREATE_USER_SQL, password, first_name,
+            last_name, email_address, phone_number, session_id)
     except Exception as e:
         logging.info('error creating user {}:{}'.format(email_address, e))
-        app.db.rollback()
         return error_response([GENERIC_USER])
-    new_user = db.fetchone()
     # remove sensitive information
-    new_user = {k: v for k, v in new_user.items() if k not in
-                {'password', 'salt', 'id', 'sms_verification', 'external_id'}}
+    new_user = {
+        k: str(v) if k == 'uid' else v for k, v in new_user.items()
+        if k not in {'password', 'salt', 'id',
+                     'sms_verification', 'external_id'}
+    }
     session_id = new_user.pop('session_id')
-    app.db.commit()
     full_name = '{} {}'.format(first_name, last_name)
     signup_email = Email(
         email_address,
@@ -293,9 +293,10 @@ async def users(request):
 @authorized()
 async def user(request, user_uid):
     if request.method == 'GET':
-        db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        db.execute(SELECT_USER_SQL, (request['session']['user_id'],))
-        user = db.fetchone()
+        db = app.pg
+        user = await db.fetchrow(SELECT_USER_SQL,
+                                 request['session']['user_id'])
+        user = {k: v for k, v in user.items()}
         return response.json(user)
     elif request.method == 'PUT':
         if user_uid != request['session']['user_uid']:
@@ -307,10 +308,10 @@ async def user(request, user_uid):
         last_name = request.json['last_name']
         phone_number = request.json['phone_number']
         email_address = request.json['email_address']
-        request['db'].execute(UPDATE_USER_SQL,
-                              (first_name, last_name, phone_number,
-                               email_address, request['session']['user_id']))
-        app.db.commit()
+        await request['db'].execute(
+            UPDATE_USER_SQL,
+            first_name, last_name, phone_number,
+            email_address, request['session']['user_id'])
         return response.HTTPResponse(body=None, status=200)
 
 
@@ -318,18 +319,18 @@ async def user(request, user_uid):
 async def two_factor_login(request):
     if request.json.keys() != {'sms_verification', 'email_address'}:
         return error_response([MISSING_FIELDS])
-    db = app.db.cursor()
+    db = app.pg
     sms_verification = request.json['sms_verification']
     email_address = request.json['email_address']
-    db.execute(VERIFY_SMS_LOGIN,
-               (email_address, sms_verification))
-    user_id, user_uid = db.fetchone()
+    user_ids = await db.fetchrow(VERIFY_SMS_LOGIN,
+                                 email_address, sms_verification)
+    user_id = user_ids['id']
+    user_uid = user_ids['uid']
     if user_id is None:
         return error_response([SMS_VERIFICATION_FAILED])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
-    db.execute(LOGIN_SQL,
-               (session_id, user_id))
-    app.db.commit()
+    await db.execute(LOGIN_SQL,
+                     session_id, user_id)
     resp = response.json({'success': ['Login successful'],
                           'user_uid': user_uid}, status=200)
     resp.cookies['session_id'] = session_id
@@ -344,18 +345,18 @@ async def two_factor_login(request):
 @authorized()
 async def two_factor_settings(request):
     if request.method == 'GET':
-        db = app.db.cursor()
-        db.execute(SELECT_2FA_SETTINGS_SQL, (request['session']['user_id'],))
-        settings = db.fetchone()
-        return response.json({'sms_2fa_enabled': settings[0]})
+        db = app.pg
+        settings = await db.fetchrow(SELECT_2FA_SETTINGS_SQL,
+                                     request['session']['user_id'])
+        return response.json({'sms_2fa_enabled': settings['sms_2fa_enabled']})
     elif request.method == 'PUT':
         if request.json.keys() != {'sms_2fa_enabled'}:
             return error_response([MISSING_FIELDS])
         sms_2fa_enabled = request.json['sms_2fa_enabled']
-        db = app.db.cursor()
-        db.execute(UPDATE_2FA_SETTINGS_SQL,
-                   (sms_2fa_enabled, request['session']['user_id']))
-        app.db.commit()
+        db = app.pg
+        await db.execute(
+            UPDATE_2FA_SETTINGS_SQL,
+            sms_2fa_enabled, request['session']['user_id'])
         return response.HTTPResponse(body=None, status=200)
 
 
@@ -373,25 +374,26 @@ def send_sms(to_number, body):
 async def login(request):
     if request.json.keys() != {'email_address', 'password'}:
         return error_response([MISSING_FIELDS])
-    email_address = request.json['email_address']
-    password = request.json['password']
-    db = app.db.cursor()
-    db.execute(PASSWORD_ACCESS_SQL, (password, email_address))
-    login = db.fetchone()
+    email_address = request.json.get('email_address')
+    password = request.json.get('password')
+    db = app.pg
+    login = await db.fetchrow(PASSWORD_ACCESS_SQL, password, email_address)
     if login:
-        access, user_id, sms_2fa, phone_number, user_uid = login
+        access = login['accessed']
+        user_id = login['id']
+        sms_2fa = login['sms_2fa_enabled']
+        phone_number = login['phone_number']
+        user_uid = login['uid']
         if access:
             if sms_2fa:
                 code_2fa = str(random.randrange(100000, 999999))
-                db.execute(SET_2FA_CODE_SQL, (code_2fa, user_id))
-                app.db.commit()
+                await db.execute(SET_2FA_CODE_SQL, code_2fa, user_id)
                 send_sms(phone_number, code_2fa)
                 return response.json({'success': ['2FA has been sent']})
             else:
                 session_id = hmac.new(uuid4().bytes,
                                       digestmod=sha1).hexdigest()
-                db.execute(LOGIN_SQL, (session_id, user_id))
-                app.db.commit()
+                await db.execute(LOGIN_SQL, session_id, user_id)
                 resp = response.json({'success': ['Login successful'],
                                       'user_uid': user_uid},
                                      status=200)
@@ -406,10 +408,9 @@ async def login(request):
 @app.route('/logout', methods=['POST'])
 @authorized()
 async def logout(request):
-    request['db'].execute(
+    await request['db'].execute(
         LOGOUT_SQL,
-        (request['session']['user_id'],))
-    app.db.commit()
+        request['session']['user_id'])
     return response.json({'success': ['Your session has been invalidated']})
 
 
@@ -420,10 +421,12 @@ async def change_password(request):
         return error_response([MISSING_FIELDS])
     password = request.json['password']
     email_address = request.json['email_address']
-    request['db'].execute(PASSWORD_ACCESS_SQL, (password, email_address))
-    login = request['db'].fetchone()
+    login = await request['db'].fetchrow(
+        PASSWORD_ACCESS_SQL,
+        password, email_address)
     if login:
-        access, user_id, sms_2fa, phone_number, _ = login
+        access = login['accessed']
+        user_id = login['id']
         if user_id != request['session']['user_id']:
             logging.warn(
                 'Permissions issue: user ID:%s target user ID: %s' %
@@ -431,8 +434,8 @@ async def change_password(request):
             return error_response([PASSWORD_TARGET])
         elif access:
             new_password = request.json['new_password']
-            request['db'].execute(CHANGE_PASSWORD_SQL, (new_password, user_id))
-            app.db.commit()
+            await request['db'].execute(
+                CHANGE_PASSWORD_SQL, new_password, user_id)
             return response.json(
                 {'success': ['Your password has been changed']})
     return error_response([PASSWORD_CHECK])
@@ -443,12 +446,10 @@ async def password(request):
     if request.json.keys() != {'email_address'}:
         return error_response([MISSING_FIELDS])
     email_address = request.json['email_address']
-    db = app.db.cursor()
-    db.execute(RESET_TOKEN_CREATION_SQL, (email_address,))
-    reset_token = db.fetchone()
-    if reset_token[0]:
-        app.db.commit()
-        reset_token = reset_token[0]
+    db = app.pg
+    reset_token = await db.fetchrow(RESET_TOKEN_CREATION_SQL, email_address)
+    if reset_token:
+        reset_token = str(reset_token['reset_token'])
         url = ("https://" + str(os.getenv("INSTANCE_HOST")) +
                '/reset_password/{}'.format(reset_token))
         reset_email = Email(email_address,
@@ -463,18 +464,16 @@ async def password(request):
 async def reset_password(request, token):
     if len(token) != 36:
         return error_response([EXPIRED_TOKEN])
-    db = app.db.cursor()
-    db.execute(SELECT_RESET_TOKEN_SQL, (token, dt.now()))
-    data = db.fetchone()
+    db = app.pg
+    data = await db.fetchrow(SELECT_RESET_TOKEN_SQL, token, dt.now())
     if data is not None:
         if request.method == 'GET':
             return response.html(password_template.render(token=token))
         elif request.method == 'POST':
             new_password = request.json['new_password']
-            user_id = data[1]
-            db.execute(CHANGE_PASSWORD_SQL, (new_password, user_id))
-            db.execute(EXPIRE_RESET_TOKEN_SQL, (token,))
-            app.db.commit()
+            user_id = data['id']
+            await db.execute(CHANGE_PASSWORD_SQL, new_password, user_id)
+            await db.execute(EXPIRE_RESET_TOKEN_SQL, token)
             return response.json(
                 {'success': ['Your password has been changed']})
     else:
@@ -485,18 +484,19 @@ async def reset_password(request, token):
 @authorized()
 async def email_preferences(request):
     if request.method == 'GET':
-        db = app.db.cursor()
-        db.execute(SELECT_EMAIL_PREFS_SQL, (request['session']['user_uid'],))
-        settings = db.fetchone()
-        return response.json({'receive_emails_enabled': settings[0]})
+        db = app.pg
+        settings = await db.fetchrow(SELECT_EMAIL_PREFS_SQL,
+                                     request['session']['user_id'])
+        return response.json({'receive_emails_enabled':
+                              settings['receive_emails_enabled']})
     elif request.method == 'PUT':
         if request.json.keys() != {'receive_emails_enabled'}:
             return error_response([MISSING_FIELDS])
         receive_emails_enabled = request.json['receive_emails_enabled']
-        db = app.db.cursor()
-        db.execute(UPDATE_EMAIL_PREFS_SQL,
-                   (receive_emails_enabled, request['session']['user_uid']))
-        app.db.commit()
+        db = app.pg
+        await db.execute(UPDATE_EMAIL_PREFS_SQL,
+                         receive_emails_enabled,
+                         request['session']['user_id'])
         return response.json(
             {'success': ['Your email preferences have been updated']}
         )
@@ -518,9 +518,8 @@ async def jumio_callback(request):
     form_data = request.form
     scan_reference = form_data.get('scanReference')
     if scan_reference:
-        cur = app.db.cursor()
-        cur.execute(CREATE_IV_SQL, (scan_reference, json.dumps(form_data)))
-        app.db.commit()
+        db = app.pg
+        await db.execute(CREATE_IV_SQL, scan_reference, json.dumps(form_data))
         return response.HTTPResponse(body=None, status=201)
     else:
         return response.HTTPResponse(body=None, status=400)
@@ -529,8 +528,7 @@ async def jumio_callback(request):
 @app.route('/jumio_results/<scan_reference>', methods=['GET'])
 @authorized()
 async def get_jumio_results(request, scan_reference):
-    request['db'].execute(IV_RESULTS_SQL, (scan_reference,))
-    results = request['db'].fetchall()
+    results = await request['db'].fetch(IV_RESULTS_SQL, scan_reference)
     if results:
         return response.json({'results': [r[0] for r in results]})
     else:
@@ -548,9 +546,10 @@ async def ca_search(request):
         hits = ca_response_json.get(
             'content', {}).get('data', {}).get('total_hits')
         if hits != 0:
-            db = app.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            db.execute(SELECT_USER_SQL, (request['session']['user_id'],))
-            user_info = db.fetchone()
+            db = app.pg
+            user_info = await db.fetchrow(SELECT_USER_SQL,
+                                          request['session']['user_id'])
+            user_info = dict(user_info)
             create_zendesk_ticket(ca_response, user_info)
     # DL: Do we actually need to provide GET requests to the mobile app?
     elif request.method == 'GET':
@@ -651,11 +650,12 @@ if __name__ == '__main__':
 
     if secret_name:
         secret = load_aws_secret(secret_name)
-        app.db = psycopg2.connect(dbname=secret['dbname'],
-                                  user=secret['username'],
-                                  password=secret['password'],
-                                  host=secret['host'],
-                                  port=secret['port'])
+        app.db = dict(database=secret['dbname'],
+                      user=secret['username'],
+                      password=secret['password'],
+                      host=secret['host'],
+                      port=secret['port'])
+        app.blueprint(bp)
     app.run(host='0.0.0.0',
             port=8000,
             access_log=False if os.environ.get('EREBOR_ENV') == 'PROD'

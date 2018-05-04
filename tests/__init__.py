@@ -4,6 +4,8 @@ import flexmock
 from os import environ
 environ['erebor_test'] = 'true'
 
+from erebor.db import bp  # noqa
+from erebor.email import boto3, AWS_REGION  # noqa
 from erebor.erebor import app  # noqa
 from erebor.email import boto3, AWS_REGION  # noqa
 from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
@@ -14,14 +16,16 @@ class TestErebor(object):
 
     def setup_method(method):
         method.postgresql = testing.postgresql.Postgresql()
-        app.db = psycopg2.connect(**method.postgresql.dsn())
-        cur = app.db.cursor()
-        cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
-        cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
-        cur.execute(CREATE_USERS_TABLE_SQL)
-        cur.execute(CREATE_IV_TABLE_SQL)
-        cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
-        app.db.commit()
+        app.db = (method.postgresql.dsn())
+        app.blueprint(bp)
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+                cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
+                cur.execute(CREATE_USERS_TABLE_SQL)
+                cur.execute(CREATE_IV_TABLE_SQL)
+                cur.execute(CREATE_IV_TABLE_SQL)
+                cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
 
         # mock SES
         boto_response = {'ResponseMetadata': {'RequestId': '12345'}}

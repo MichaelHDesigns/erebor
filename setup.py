@@ -40,6 +40,7 @@ setup(
     # Dependent packages (distributions)
     install_requires=[
         "aiohttp==2.2.5",
+        "asyncpg==0.15.0",
         "blinker==1.3",
         "boto3==1.7.4",
         "chardet==2.3.0",
