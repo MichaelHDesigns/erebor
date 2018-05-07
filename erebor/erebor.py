@@ -755,6 +755,34 @@ async def json_rpc_bridge(request):
     return response.json(rpc_response.json())
 
 
+@app.route('/request_funds/', methods=['POST'])
+@authorized()
+async def request_funds(request):
+    fund_request = request.json
+    if fund_request.keys() != {'to_email_address', 'email_address',
+                               'currency', 'amount'}:
+        return error_response([MISSING_FIELDS])
+    currency = fund_request['currency']
+    amount = fund_request['amount']
+    from_email_address = fund_request['email_address']
+    to_email_address = fund_request['to_email_address']
+    request_time = dt.now().strftime('%B %d, %Y - %H:%m')
+
+    # TODO: Include push notification here
+
+    request_email = Email(
+        to_email_address,
+        'request_funds',
+        to_email_address=to_email_address,
+        from_email_address=from_email_address,
+        amount=amount,
+        currency=currency,
+        request_time=request_time
+    )
+    request_email.send()
+    return response.json({"success": ["Email sent notifying recipient"]})
+
+
 @app.route('/unsubscribe')
 @authorized()
 async def unsubscribe(request):

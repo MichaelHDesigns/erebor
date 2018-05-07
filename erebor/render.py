@@ -16,6 +16,9 @@ contact_transaction_email_template = jinja_env.get_template(
     'emails/contact_transaction_email.html')
 pending_transactions_email = jinja_env.get_template(
     'emails/pending_transactions_email.html')
+request_funds_email_template = jinja_env.get_template(
+    'emails/request_funds_email.html'
+)
 
 RESULT_ACTIONS = {
     'unsubscribe': {

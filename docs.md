@@ -103,6 +103,16 @@ GET:
 
   Response: {'sms_2fa_enabled': BOOL}
 
+#### /request_funds/
+
+POST:
+  - to_email_address
+  - email_address
+  - currency
+  - amount
+
+  Response: {"success": ["Email sent notifying recipient"]}
+
 #### /email_preferences/
 
 PUT:

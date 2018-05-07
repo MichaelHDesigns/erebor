@@ -899,3 +899,15 @@ class TestResources(TestErebor):
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
         assert response.json == {'public_key': '0xDEADBEEF'}
+
+    def test_request_funds(self):
+        u_data, session_id = new_user(app)
+
+        request, response = app.test_client.post(
+            '/request_funds/',
+            cookies={'session_id': session_id},
+            data=json.dumps(
+                {'to_email_address': 'recipient@test.com',
+                 'email_address': test_user_data['email_address'],
+                 'currency': 'BTC', 'amount': '9001'}))
+        assert response.json == {"success": ["Email sent notifying recipient"]}

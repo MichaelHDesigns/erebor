@@ -3,8 +3,10 @@ from botocore.exceptions import ClientError
 
 from erebor.render import (
     signup_email_template, reset_password_email_template,
-    contact_transaction_email_template, pending_transactions_email
+    contact_transaction_email_template, pending_transactions_email,
+    request_funds_email_template
     )
+
 
 AWS_REGION = "us-east-1"
 
@@ -40,6 +42,15 @@ EMAIL_TYPES = {
                       'This email is to serve as a reminder about the '
                       'transactions you previously wished to send them.'),
         'body_html': pending_transactions_email
+    },
+    'request_funds': {
+        'subject': "You've got a crypto request",
+        'body_text': ("Hello {to_email_address},\r\n"
+                      "{from_email_address} sent you a crypto request.\r\n"
+                      "Crypto request details:\r\n"
+                      "Amount requested {amount} {currency}\r\n"
+                      "{request_time}"),
+        'body_html': request_funds_email_template
     }
 }
 
