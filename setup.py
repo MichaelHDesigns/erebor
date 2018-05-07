@@ -55,6 +55,8 @@ setup(
         "psycopg2==2.7.3.1",
         "pyasn1==0.1.9",
         "pytest==3.2.1",
+        "pytest-asyncio==0.8.0",
+        "pytest-sanic==0.1.9",
         "requests==2.18.4",
         "sanic==0.7.0",
         "Sanic-Cors==0.6.0.2",

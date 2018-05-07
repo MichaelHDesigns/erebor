@@ -1,13 +1,13 @@
 import testing.postgresql
-import psycopg2
 import flexmock
+import pytest
+from asyncpg import connect
 from os import environ
 environ['erebor_test'] = 'true'
 
 from erebor.db import bp  # noqa
 from erebor.email import boto3, AWS_REGION  # noqa
-from erebor.erebor import app  # noqa
-from erebor.email import boto3, AWS_REGION  # noqa
+from erebor.erebor import app as erebor_app  # noqa
 
 from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
                         CREATE_RESET_TOKENS_TABLE_SQL,
@@ -17,22 +17,22 @@ from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
 
 
 class TestErebor(object):
-
-    def setup_method(method):
-        method.postgresql = testing.postgresql.Postgresql()
-        app.db = (method.postgresql.dsn())
-        app.blueprint(bp)
-        with psycopg2.connect(**app.db) as conn:
-            with conn.cursor() as cur:
-                cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
-                cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
-                cur.execute(CREATE_USERS_TABLE_SQL)
-                cur.execute(CREATE_IV_TABLE_SQL)
-                cur.execute(CREATE_IV_TABLE_SQL)
-                cur.execute(CREATE_CURRENCY_ENUM_SQL)
-                cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
-                cur.execute(CREATE_CONTACT_TRANSACTIONS_SQL)
-                cur.execute(CREATE_ADDRESSES_TABLE_SQL)
+    @pytest.yield_fixture
+    async def app(self):
+        postgresql = testing.postgresql.Postgresql()
+        erebor_app.db = (postgresql.dsn())
+        if not erebor_app.blueprints:
+            erebor_app.blueprint(bp)
+        conn = await connect(**erebor_app.db)
+        await conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+        await conn.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
+        await conn.execute(CREATE_USERS_TABLE_SQL)
+        await conn.execute(CREATE_IV_TABLE_SQL)
+        await conn.execute(CREATE_IV_TABLE_SQL)
+        await conn.execute(CREATE_CURRENCY_ENUM_SQL)
+        await conn.execute(CREATE_RESET_TOKENS_TABLE_SQL)
+        await conn.execute(CREATE_CONTACT_TRANSACTIONS_SQL)
+        await conn.execute(CREATE_ADDRESSES_TABLE_SQL)
 
         # mock SES
         boto_response = {'ResponseMetadata': {'RequestId': '12345'}}
@@ -41,6 +41,9 @@ class TestErebor(object):
         flexmock(mock_boto3_client).should_receive('send_email').and_return(
             boto_response)
         flexmock(boto3).should_receive("client").and_return(mock_boto3_client)
+        yield erebor_app
+        postgresql.stop()
 
-    def teardown_method(method):
-        method.postgresql.stop()
+    @pytest.fixture
+    def test_cli(self, loop, app, test_client):
+        return loop.run_until_complete(test_client(app))
