@@ -8,8 +8,12 @@ from erebor.db import bp  # noqa
 from erebor.email import boto3, AWS_REGION  # noqa
 from erebor.erebor import app  # noqa
 from erebor.email import boto3, AWS_REGION  # noqa
+
 from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
-                        CREATE_RESET_TOKENS_TABLE_SQL)  # noqa
+                        CREATE_RESET_TOKENS_TABLE_SQL,
+                        CREATE_CONTACT_TRANSACTIONS_SQL,
+                        CREATE_CURRENCY_ENUM_SQL,
+                        CREATE_ADDRESSES_TABLE_SQL)  # noqa
 
 
 class TestErebor(object):
@@ -25,7 +29,10 @@ class TestErebor(object):
                 cur.execute(CREATE_USERS_TABLE_SQL)
                 cur.execute(CREATE_IV_TABLE_SQL)
                 cur.execute(CREATE_IV_TABLE_SQL)
+                cur.execute(CREATE_CURRENCY_ENUM_SQL)
                 cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
+                cur.execute(CREATE_CONTACT_TRANSACTIONS_SQL)
+                cur.execute(CREATE_ADDRESSES_TABLE_SQL)
 
         # mock SES
         boto_response = {'ResponseMetadata': {'RequestId': '12345'}}

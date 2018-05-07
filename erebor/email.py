@@ -1,7 +1,10 @@
 import boto3
 from botocore.exceptions import ClientError
 
-from erebor.render import signup_email_template, reset_password_email_template
+from erebor.render import (
+    signup_email_template, reset_password_email_template,
+    contact_transaction_email_template, pending_transactions_email
+    )
 
 AWS_REGION = "us-east-1"
 
@@ -22,6 +25,21 @@ EMAIL_TYPES = {
         'body_text': ("Hello - please visit this link to reset your password:"
                       "\r\n{url}"),
         'body_html': reset_password_email_template
+    },
+    'contact_transactions': {
+        'subject': 'Hoard - You have {amount} pending {currency}!',
+        'body_text': ('Hello {to_email_address} - {from_email_address}'
+                      'at Hoard wishes to send you {amount}{currency}!'),
+        'body_html': contact_transaction_email_template
+    },
+    'pending_contact_transactions': {
+        'subject': 'Your contact has signed up to Hoard',
+        'body_text': ('Hello {first_name}\r\n'
+                      'Your contact {to_email_address} has just '
+                      'signed up to Hoard!\r\n'
+                      'This email is to serve as a reminder about the '
+                      'transactions you previously wished to send them.'),
+        'body_html': pending_transactions_email
     }
 }
 

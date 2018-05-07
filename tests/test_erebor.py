@@ -1,9 +1,11 @@
 import json
 from uuid import uuid4
+from datetime import datetime
 
 import flexmock
 import requests
 import psycopg2
+from psycopg2.extras import RealDictCursor
 
 from erebor import erebor
 from erebor.erebor import app
@@ -643,3 +645,257 @@ class TestResources(TestErebor):
 
         assert response.status == 200
         assert response.json == json_rpc_mock_resp_data
+
+    def test_register_address(self):
+        u_data, session_id = new_user(app)
+
+        SELECT_ADDRESS_SQL = """
+        SELECT public_addresses.address, public_addresses.currency
+        FROM public_addresses, users
+        WHERE public_addresses.user_id = users.id
+        AND public_addresses.currency = %s
+        AND users.email_address = %s
+        """.strip()
+
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(u_data['uid']),
+            data=json.dumps({'currency': 'ETH', 'address': '0xDEADBEEF'}),
+            cookies={'session_id': session_id})
+        assert response.status == 200
+
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(u_data['uid']),
+            data=json.dumps({'currency': 'BTC', 'address': '0xTESTBEEF'}),
+            cookies={'session_id': session_id})
+        assert response.status == 200
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_ADDRESS_SQL,
+                            ('BTC', 'test@example.com'))
+                result = cur.fetchone()
+
+        assert result['address'] == '0xTESTBEEF'
+        assert result['currency'] == 'BTC'
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_ADDRESS_SQL,
+                            ('ETH', 'test@example.com'))
+                result = cur.fetchone()
+        assert result['address'] == '0xDEADBEEF'
+        assert result['currency'] == 'ETH'
+
+        # Register a new address for ETH
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(u_data['uid']),
+            data=json.dumps({'currency': 'ETH', 'address': '0xNEWETHADDRESS'}),
+            cookies={'session_id': session_id})
+        assert response.status == 200
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_ADDRESS_SQL,
+                            ('ETH', 'test@example.com'))
+                result = cur.fetchone()
+        assert result['address'] == '0xNEWETHADDRESS'
+        assert result['currency'] == 'ETH'
+
+        # Register new address for BTC
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(u_data['uid']),
+            data=json.dumps({'currency': 'BTC', 'address': '0xNEWBTCADDRESS'}),
+            cookies={'session_id': session_id})
+        assert response.status == 200
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_ADDRESS_SQL,
+                            ('BTC', 'test@example.com'))
+                result = cur.fetchone()
+        assert result['address'] == '0xNEWBTCADDRESS'
+        assert result['currency'] == 'BTC'
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('SELECT * FROM public_addresses')
+                result = cur.fetchall()
+        assert result == [
+            {'user_id': 1,
+             'currency': 'ETH', 'address': '0xNEWETHADDRESS'},
+            {'user_id': 1,
+             'currency': 'BTC', 'address': '0xNEWBTCADDRESS'}
+        ]
+
+    def test_pending_contact_transactions(self):
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}')))
+        u_data, session_id = new_user(app)
+
+        SELECT_CONTACT_TRANSACTIONS = """
+        SELECT users.email_address, users.first_name, c_trans.to_email_address,
+               c_trans.currency, c_trans.amount,
+               date_trunc('minute', c_trans.created) created
+        FROM contact_transactions as c_trans, users
+        WHERE c_trans.user_id = users.id
+        AND c_trans.to_email_address = %s
+        """.strip()
+
+        # User makes three contact transactions to contacts that are not
+        # currently signed up with Hoard
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'first_test@example.com',
+                             'amount': 1, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'first_test@example.com',
+                             'amount': 4.2, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'random_email@example.com',
+                             'amount': 3.14, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+        # ---------------------------------------------------------------------
+
+        # Pending transactions for user first_test@example.com is a total of
+        # two from above
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_CONTACT_TRANSACTIONS,
+                            ('first_test@example.com',))
+                pending_transactions = cur.fetchall()
+        assert pending_transactions == [
+            {'email_address': 'test@example.com',
+             'first_name': 'Testy',
+             'to_email_address': 'first_test@example.com',
+             'currency': 'BTC', 'amount': 4.2,
+             'created': datetime.now().replace(microsecond=0, second=0)},
+            {'email_address': 'test@example.com',
+             'first_name': 'Testy',
+             'to_email_address': 'first_test@example.com',
+             'currency': 'ETH', 'amount': 1.0,
+             'created': datetime.now().replace(microsecond=0, second=0)}]
+
+        # Another pending transaction to a different email is a total of one
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_CONTACT_TRANSACTIONS,
+                            ('random_email@example.com',))
+                pending_transactions = cur.fetchall()
+        assert pending_transactions == [
+            {'email_address': 'test@example.com',
+             'first_name': 'Testy',
+             'to_email_address': 'random_email@example.com',
+             'currency': 'BTC', 'amount': 3.14,
+             'created': datetime.now().replace(microsecond=0, second=0)}]
+
+        new_user_data = {'first_name': 'First',
+                         'last_name': 'McFirstyson',
+                         'email_address': 'first_test@example.com',
+                         'password': 't3st_password',
+                         'phone_number': '19105552323'}
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(new_user_data))
+
+    def test_contact_transaction(self):
+        u_data, session_id = new_user(app)
+
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}')))
+
+        # Missing fields error response
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'blah': 'blah'}),
+            cookies={'session_id': session_id})
+        e_data = response.json
+        assert e_data == {'errors': [{'message': 'Missing fields',
+                                     'code': 100}]}
+
+        # Unsupported currency error response
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'test_send@example.com',
+                             'amount': 10, 'currency': 'ADA'}),
+            cookies={'session_id': session_id})
+        e_data = response.json
+        assert e_data == {'errors': [{'message': 'Unsupported Currency',
+                                     'code': 202}]}
+
+        # Negative balance error response
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'test_send@example.com',
+                             'amount': -1, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        e_data = response.json
+        assert e_data == {'errors': [{'message': 'Invalid amount',
+                                     'code': 201}]}
+
+        # Insufficient balance error response for ETH
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'test_send@example.com',
+                             'amount': 5, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        e_data = response.json
+        assert e_data == {'errors': [{'message': 'Insufficient balance',
+                                     'code': 200}]}
+        assert response.status == 403
+
+        # Insufficient balance error response for BTC
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'test_send@example.com',
+                             'amount': 10, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        e_data = response.json
+        assert e_data == {'errors': [{'message': 'Insufficient balance',
+                                     'code': 200}]}
+        assert response.status == 403
+
+        # Recipient email address has no Hoard account
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'test_send@example.com',
+                             'amount': 2, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        # Register an address for the user
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(u_data['uid']),
+            data=json.dumps({'currency': 'ETH', 'address': '0xDEADBEEF'}),
+            cookies={'session_id': session_id})
+        assert response.status == 200
+
+        # Transaction returns the public key of the recipient
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'to_email_address': 'test@example.com',
+                             'amount': 2, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {'public_key': '0xDEADBEEF'}

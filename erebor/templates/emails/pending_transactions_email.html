@@ -1,0 +1,25 @@
+<html>
+<head></head>
+<body>
+  <p>
+    Hello {{first_name}}, <br />
+    Your contact {{to_email_address}} has just signed up to Hoard!
+    <br />
+    <br />
+    This email is to serve as a reminder about the transactions you previously
+    wished to send: <br />
+    {% for entry in transactions %}
+      <p>
+      <ul>
+        <li>Amount - {{entry['amount']}}</li>
+        <li>Currency - {{entry['currency']}}</li>
+        <li>{{entry['created'].strftime('%B %d, %Y - %H:%m')}}</li>
+      </ul>
+      </p>
+      <br />
+    {% endfor %}
+    <br>
+    <a href="https://www.hoardinvest.com">HoardInvest.com</a>.
+  </p>
+</body>
+</html>

@@ -8,6 +8,7 @@ import hmac
 import logging
 import os
 import random
+from decimal import Decimal
 
 from sanic import Sanic, response
 from sanic.log import LOGGING_CONFIG_DEFAULTS
@@ -24,12 +25,20 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
                            INVALID_API_KEY, PASSWORD_TARGET, PASSWORD_CHECK,
                            TICKER_UNAVAILABLE, GENERIC_USER, EXPIRED_TOKEN,
-                           INVALID_PLATFORM, RATE_LIMIT_EXCEEDED)
+                           INVALID_PLATFORM, RATE_LIMIT_EXCEEDED,
+                           INSUFFICIENT_BALANCE, NEGATIVE_AMOUNT,
+                           UNSUPPORTED_CURRENCY)
 from erebor.email import Email
 from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
 from erebor.logs import logging_config
 from erebor.db import bp
+
+
+ETH_NETWORK = (os.environ.get("ETH_NETWORK") if not os.getenv('erebor_test')
+               else 'ropsten')
+INFURA_API_KEY = os.environ.get("INFURA_API_KEY")
+
 
 app = Sanic(log_config=logging_config
             if not os.getenv('erebor_test') else LOGGING_CONFIG_DEFAULTS)
@@ -221,6 +230,42 @@ FROM identity_verifications
 WHERE scan_reference = $1
 """.strip()
 
+CREATE_CONTACT_TRANSACTION_SQL = """
+INSERT INTO contact_transactions (user_id, to_email_address,
+                                  currency, amount, created)
+VALUES ($1, $2, $3, $4, now())
+""".strip()
+
+SELECT_CONTACT_TRANSACTIONS = """
+SELECT users.email_address, users.first_name, c_trans.to_email_address,
+       c_trans.currency, c_trans.amount,
+       date_trunc('minute', c_trans.created) created
+FROM contact_transactions as c_trans, users
+WHERE c_trans.user_id = users.id
+AND c_trans.to_email_address = $1
+""".strip()
+
+REGISTER_ADDRESS_SQL = """
+INSERT INTO public_addresses (user_id, currency, address)
+VALUES ($1, $2, $3)
+ON CONFLICT ON CONSTRAINT pk_addresses DO UPDATE
+SET address = $3
+""".strip()
+
+SELECT_ADDRESS_SQL = """
+SELECT public_addresses.address, public_addresses.currency
+FROM public_addresses, users
+WHERE public_addresses.user_id = users.id
+AND public_addresses.currency = $1
+AND users.email_address = $2
+""".strip()
+
+SELECT_EMAIL_AND_FNAME_SQL = """
+SELECT email_address, first_name
+FROM users
+WHERE id = $1
+""".strip()
+
 
 def authorized():
     def decorator(f):
@@ -281,6 +326,7 @@ async def users(request):
         full_name=full_name
     )
     signup_email.send()
+    await notify_contact_on_signup(email_address, db)
     resp = response.json(new_user, status=201)
     resp.cookies['session_id'] = session_id
     resp.cookies['session_id']['max-age'] = 86400
@@ -564,6 +610,138 @@ async def ca_search_id(request, search_id):
         search_id, os.environ.get('COMPLY_ADVANTAGE_API_KEY'))
     ca_response = requests.get(url)
     return response.json(ca_response)
+
+
+@app.route('/users/<user_uid>/register_address', methods=['POST'])
+@authorized()
+async def register_public_keys(request, user_uid):
+    if user_uid != request['session']['user_uid']:
+        return error_response([UNAUTHORIZED])
+    if request.json.keys() != {'currency', 'address'}:
+        return error_response([MISSING_FIELDS])
+    currency = request.json['currency']
+    if currency not in ['ETH', 'BTC']:
+        return error_response([UNSUPPORTED_CURRENCY])
+    address = request.json['address']
+    user_id = request['session']['user_id']
+    await request['db'].execute(REGISTER_ADDRESS_SQL,
+                                user_id, currency, address)
+    return response.HTTPResponse(body=None, status=200)
+
+
+async def public_key_for_user(email_address, currency, db):
+    # Check if user has any registered public keys
+    address = await db.fetchrow(SELECT_ADDRESS_SQL, currency, email_address)
+    return address
+
+
+async def record_contact_transaction(transaction, user_id, db):
+    # Record transaction in database
+    await db.execute(
+        CREATE_CONTACT_TRANSACTION_SQL,
+        user_id, transaction['to_email_address'],
+        transaction['currency'], transaction['amount'])
+    return
+
+
+async def notify_contact_on_signup(to_email_address, db):
+    """
+    Notifies a user if their contact has now signed up to Hoard and displays
+    all of the transactions they attempted to do in an email.
+    """
+    transactions = await db.fetch(SELECT_CONTACT_TRANSACTIONS,
+                                  to_email_address)
+    if not transactions:
+        return
+    from_email_address = transactions[0]['email_address']
+    first_name = transactions[0]['first_name']
+    notify_email = Email(
+        from_email_address,
+        'pending_contact_transactions',
+        first_name=first_name,
+        to_email_address=to_email_address,
+        transactions=transactions
+    )
+    notify_email.send()
+
+
+async def notify_contact_transaction(transaction, user_id, db):
+    """
+    Notifies a contact that does not have Hoard about a pending transaction
+    sent from a Hoard member.
+    """
+    user_info = await db.fetchrow(SELECT_EMAIL_AND_FNAME_SQL, user_id)
+    from_email_address = user_info['email_address']
+    from_first_name = user_info['first_name']
+    notify_email = Email(
+        transaction['to_email_address'],
+        'contact_transactions',
+        to_email_address=transaction['to_email_address'],
+        from_email_address=from_email_address,
+        from_first_name=from_first_name,
+        amount=transaction['amount'],
+        currency=transaction['currency']
+    )
+    notify_email.send()
+
+
+def get_balance(address, currency):
+    if currency == 'ETH':
+        params = {
+            "token": INFURA_API_KEY,
+            "params": json.dumps([address, "latest"])
+        }
+        balance_req = requests.get(
+            "https://api.infura.io/v1/jsonrpc/{}/"
+            "eth_getBalance".format(ETH_NETWORK), params=params)
+        balance = balance_req.json().get('result')
+        if balance is None:
+            return 0
+        return Decimal(float.fromhex(balance)/(10e+17))
+    elif currency == 'BTC':
+        balance_req = requests.get(
+            "https://blockchain.info/rawaddr/{}"
+            "?limit=0".format(address))
+        try:
+            balance = balance_req.json().get('final_balance')
+        except json.decoder.JSONDecodeError:
+            return 0
+        return balance / 100000000.0
+
+
+@app.route('/contacts/transaction/', methods=['POST'])
+@authorized()
+async def contact_transaction(request):
+    transaction = request.json
+    if transaction.keys() != {'sender', 'amount',
+                              'to_email_address', 'currency'}:
+        return error_response([MISSING_FIELDS])
+    currency = transaction['currency']
+    sender_address = transaction['sender']
+    amount = transaction['amount']
+    if currency not in ['ETH', 'BTC']:
+        return error_response([UNSUPPORTED_CURRENCY])
+    if amount <= 0:
+        return error_response([NEGATIVE_AMOUNT])
+    if get_balance(sender_address, currency) < amount:
+        return error_response([INSUFFICIENT_BALANCE])
+    to_email_address = transaction['to_email_address']
+    recipient_public_key = await public_key_for_user(to_email_address,
+                                                     currency,
+                                                     request['db'])
+    if recipient_public_key is None:
+        # Record in DB
+        await record_contact_transaction(transaction,
+                                         request['session']['user_id'],
+                                         request['db'])
+
+        # Notify via email
+        await notify_contact_transaction(transaction,
+                                         request['session']['user_id'],
+                                         request['db'])
+        return response.json({"success": ["Email sent notifying recipient"]})
+    else:
+        return response.json({'public_key': recipient_public_key[0]})
 
 
 @app.route('/jsonrpc', methods=['POST'])

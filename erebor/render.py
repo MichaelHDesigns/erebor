@@ -12,6 +12,10 @@ result_template = jinja_env.get_template('result.html')
 password_template = jinja_env.get_template('password.html')
 reset_password_email_template = jinja_env.get_template(
     'emails/reset_password_email.html')
+contact_transaction_email_template = jinja_env.get_template(
+    'emails/contact_transaction_email.html')
+pending_transactions_email = jinja_env.get_template(
+    'emails/pending_transactions_email.html')
 
 RESULT_ACTIONS = {
     'unsubscribe': {

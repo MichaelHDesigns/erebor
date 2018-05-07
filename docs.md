@@ -114,6 +114,29 @@ GET:
 
   Response: {'receive_emails_enabled': BOOL}
 
+#### /users/{user_uid}/register_address/
+
+POST:
+  - currency
+  - address
+
+  Response: 200 OK
+
+#### /contacts/transaction/
+
+POST:
+  - sender (the public address of the sender)
+  - to_email_address
+  - currency
+  - amount
+
+  Response: {"success": ["Email sent notifying recipient"]}
+
+    OR if they are a user and have a registered public key for the currency
+
+  Response: {'public_key': recipient_public_key}
+
+
 ### KYC/AML/Identity Verification
 
 #### /ca_search/
