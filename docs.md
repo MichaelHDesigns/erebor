@@ -13,10 +13,12 @@ POST:
   - last_name
   - phone_number
   - email_address
+  - username
   - password
 
   Response: {'uid': UUID,
              'email_address': STRING,
+             'username': STRING,
              'first_name': STRING,
              'last_name': STRING,
              'phone_number': STRING}
@@ -29,19 +31,21 @@ UPDATE:
   - last_name
   - phone_number
   - email_address
+  - username
 
  GET:
   {'uid': UUID,
    'first_name': STRING,
    'last_name': STRING,
    'phone_number': STRING,
-   'email_address': STRING}
+   'email_address': STRING,
+   'username': STRING}
 
 #### /change_password/
 
 POST:
   - password
-  - email_address
+  - username_or_email
   - new_password
 
   Response: 200 OK, empty body
@@ -73,7 +77,7 @@ POST (empty body)
 #### /login/
 
 POST:
-  - email_address
+  - username_or_email
   - password
 
   Response: {'success': ['Login successful']}
@@ -86,7 +90,7 @@ POST:
 #### /2fa/sms_login/
 
 POST:
-  - email_address
+  - username_or_email
   - sms_verification
 
   Response: {'success': ['Login successful']}
@@ -106,8 +110,8 @@ GET:
 #### /request_funds/
 
 POST:
-  - to_email_address
-  - email_address
+  - recipient (can be a valid email address or username)
+  - email_address (the email address of the sender)
   - currency
   - amount
 
@@ -136,7 +140,7 @@ POST:
 
 POST:
   - sender (the public address of the sender)
-  - to_email_address
+  - recipient (can be a valid email address or username)
   - currency
   - amount
 

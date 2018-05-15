@@ -9,6 +9,7 @@ import logging
 import os
 import random
 from decimal import Decimal
+import re
 
 from sanic import Sanic, response
 from sanic.log import LOGGING_CONFIG_DEFAULTS
@@ -27,7 +28,8 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            TICKER_UNAVAILABLE, GENERIC_USER, EXPIRED_TOKEN,
                            INVALID_PLATFORM, RATE_LIMIT_EXCEEDED,
                            INSUFFICIENT_BALANCE, NEGATIVE_AMOUNT,
-                           UNSUPPORTED_CURRENCY)
+                           UNSUPPORTED_CURRENCY, INVALID_USERNAME,
+                           NO_PUBLIC_KEY, INVALID_EMAIL, USER_NOT_FOUND)
 from erebor.email import Email
 from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
@@ -47,6 +49,9 @@ CORS(app, automatic_options=True)
 limiter = Limiter(app,
                   global_limits=['50 per minute'],
                   key_func=get_remote_address)
+
+email_pattern = re.compile('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$')
+username_pattern = re.compile('[^\w]')
 
 btc_usd_latest = None
 eth_usd_latest = None
@@ -100,6 +105,7 @@ SELECT
   phone_number, uid::text
 FROM users
 WHERE email_address = $2
+OR username = $2
 """.strip()
 
 RESET_TOKEN_CREATION_SQL = """
@@ -142,15 +148,16 @@ WHERE id = $2
 
 SELECT_USER_SQL = """
 SELECT uid::text, first_name, last_name, phone_number,
-       email_address, sms_2fa_enabled
+       email_address, username, sms_2fa_enabled
 FROM users
 WHERE id = $1
 """.strip()
 
 UPDATE_USER_SQL = """
 UPDATE users
-SET first_name = $1, last_name = $2, phone_number = $3, email_address = $4
-WHERE id = $5
+SET first_name = $1, last_name = $2, phone_number = $3, email_address = $4,
+    username = $5
+WHERE id = $6
 """.strip()
 
 SELECT_EMAIL_PREFS_SQL = """
@@ -171,8 +178,8 @@ WITH x AS (
     gen_salt('bf')::text AS salt
 )
 INSERT INTO users (password, salt, first_name, last_name, email_address,
-                   phone_number, session_id)
-SELECT crypt(x.password, x.salt), x.salt, $2, $3, $4, $5, $6
+                   username, phone_number, session_id)
+SELECT crypt(x.password, x.salt), x.salt, $2, $3, $4, $5, $6, $7
 FROM x
 RETURNING *
 """.strip()
@@ -215,7 +222,7 @@ WHERE id = $2
 VERIFY_SMS_LOGIN = """
 UPDATE users
 SET sms_verification = Null
-WHERE email_address = $1 AND sms_verification = $2
+WHERE (email_address = $1 OR username = $1) AND sms_verification = $2
 RETURNING users.id, users.uid::text
 """.strip()
 
@@ -253,17 +260,24 @@ SET address = $3
 """.strip()
 
 SELECT_ADDRESS_SQL = """
-SELECT public_addresses.address, public_addresses.currency
+SELECT public_addresses.address, public_addresses.currency, users.email_address
 FROM public_addresses, users
 WHERE public_addresses.user_id = users.id
 AND public_addresses.currency = $1
-AND users.email_address = $2
+AND (users.email_address = $2
+     OR users.username = $2)
 """.strip()
 
 SELECT_EMAIL_AND_FNAME_SQL = """
 SELECT email_address, first_name
 FROM users
 WHERE id = $1
+""".strip()
+
+SELECT_EMAIL_FROM_USERNAME_SQL = """
+SELECT email_address
+FROM users
+WHERE username = $1
 """.strip()
 
 
@@ -296,7 +310,7 @@ def handle_429(request, exception):
 @app.route('/users', methods=['POST'])
 async def users(request):
     if request.json.keys() != {'password', 'first_name', 'last_name',
-                               'email_address', 'phone_number'}:
+                               'email_address', 'username', 'phone_number'}:
         return error_response([MISSING_FIELDS])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db = app.pg
@@ -305,10 +319,16 @@ async def users(request):
     phone_number = request.json['phone_number']
     email_address = request.json['email_address']
     password = request.json['password']
+    username = request.json['username']
+    if (username_pattern.search(username) or
+       len(username) > 32 or len(username) < 3):
+        return error_response([INVALID_USERNAME])
+    if not email_pattern.match(email_address):
+        return error_response([INVALID_EMAIL])
     try:
         new_user = await db.fetchrow(
             CREATE_USER_SQL, password, first_name,
-            last_name, email_address, phone_number, session_id)
+            last_name, email_address, username, phone_number, session_id)
     except Exception as e:
         logging.info('error creating user {}:{}'.format(email_address, e))
         return error_response([GENERIC_USER])
@@ -348,32 +368,33 @@ async def user(request, user_uid):
         if user_uid != request['session']['user_uid']:
             return error_response([UNAUTHORIZED])
         if request.json.keys() != {'first_name', 'last_name', 'phone_number',
-                                   'email_address'}:
+                                   'email_address', 'username'}:
             return error_response([MISSING_FIELDS])
         first_name = request.json['first_name']
         last_name = request.json['last_name']
         phone_number = request.json['phone_number']
         email_address = request.json['email_address']
+        username = request.json['username']
         await request['db'].execute(
             UPDATE_USER_SQL,
             first_name, last_name, phone_number,
-            email_address, request['session']['user_id'])
+            email_address, username, request['session']['user_id'])
         return response.HTTPResponse(body=None, status=200)
 
 
 @app.route('/2fa/sms_login', methods=['POST'])
 async def two_factor_login(request):
-    if request.json.keys() != {'sms_verification', 'email_address'}:
+    if request.json.keys() != {'sms_verification', 'username_or_email'}:
         return error_response([MISSING_FIELDS])
     db = app.pg
     sms_verification = request.json['sms_verification']
-    email_address = request.json['email_address']
+    user = request.json['username_or_email']
     user_ids = await db.fetchrow(VERIFY_SMS_LOGIN,
-                                 email_address, sms_verification)
+                                 user, sms_verification)
+    if user_ids is None:
+        return error_response([SMS_VERIFICATION_FAILED])
     user_id = user_ids['id']
     user_uid = user_ids['uid']
-    if user_id is None:
-        return error_response([SMS_VERIFICATION_FAILED])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     await db.execute(LOGIN_SQL,
                      session_id, user_id)
@@ -418,12 +439,12 @@ def send_sms(to_number, body):
 
 @app.route('/login', methods=['POST'])
 async def login(request):
-    if request.json.keys() != {'email_address', 'password'}:
+    if request.json.keys() != {'username_or_email', 'password'}:
         return error_response([MISSING_FIELDS])
-    email_address = request.json.get('email_address')
-    password = request.json.get('password')
+    user = request.json['username_or_email']
+    password = request.json['password']
     db = app.pg
-    login = await db.fetchrow(PASSWORD_ACCESS_SQL, password, email_address)
+    login = await db.fetchrow(PASSWORD_ACCESS_SQL, password, user)
     if login:
         access = login['accessed']
         user_id = login['id']
@@ -463,13 +484,14 @@ async def logout(request):
 @app.route('/change_password', methods=['POST'])
 @authorized()
 async def change_password(request):
-    if request.json.keys() != {'new_password', 'password', 'email_address'}:
+    if request.json.keys() != {'new_password', 'password',
+                               'username_or_email'}:
         return error_response([MISSING_FIELDS])
     password = request.json['password']
-    email_address = request.json['email_address']
+    user = request.json['username_or_email']
     login = await request['db'].fetchrow(
         PASSWORD_ACCESS_SQL,
-        password, email_address)
+        password, user)
     if login:
         access = login['accessed']
         user_id = login['id']
@@ -629,9 +651,9 @@ async def register_public_keys(request, user_uid):
     return response.HTTPResponse(body=None, status=200)
 
 
-async def public_key_for_user(email_address, currency, db):
+async def public_key_for_user(recipient, currency, db):
     # Check if user has any registered public keys
-    address = await db.fetchrow(SELECT_ADDRESS_SQL, currency, email_address)
+    address = await db.fetchrow(SELECT_ADDRESS_SQL, currency, recipient)
     return address
 
 
@@ -639,7 +661,7 @@ async def record_contact_transaction(transaction, user_id, db):
     # Record transaction in database
     await db.execute(
         CREATE_CONTACT_TRANSACTION_SQL,
-        user_id, transaction['to_email_address'],
+        user_id, transaction['recipient'],
         transaction['currency'], transaction['amount'])
     return
 
@@ -673,10 +695,11 @@ async def notify_contact_transaction(transaction, user_id, db):
     user_info = await db.fetchrow(SELECT_EMAIL_AND_FNAME_SQL, user_id)
     from_email_address = user_info['email_address']
     from_first_name = user_info['first_name']
+    to_email_address = transaction['recipient']
     notify_email = Email(
-        transaction['to_email_address'],
+        to_email_address,
         'contact_transactions',
-        to_email_address=transaction['to_email_address'],
+        to_email_address=to_email_address,
         from_email_address=from_email_address,
         from_first_name=from_first_name,
         amount=transaction['amount'],
@@ -714,8 +737,9 @@ def get_balance(address, currency):
 async def contact_transaction(request):
     transaction = request.json
     if transaction.keys() != {'sender', 'amount',
-                              'to_email_address', 'currency'}:
+                              'recipient', 'currency'}:
         return error_response([MISSING_FIELDS])
+    recipient = transaction['recipient']
     currency = transaction['currency']
     sender_address = transaction['sender']
     amount = transaction['amount']
@@ -725,11 +749,12 @@ async def contact_transaction(request):
         return error_response([NEGATIVE_AMOUNT])
     if get_balance(sender_address, currency) < amount:
         return error_response([INSUFFICIENT_BALANCE])
-    to_email_address = transaction['to_email_address']
-    recipient_public_key = await public_key_for_user(to_email_address,
-                                                     currency,
-                                                     request['db'])
-    if recipient_public_key is None:
+    recipient_public_key = await public_key_for_user(
+        recipient,
+        currency,
+        request['db']
+    )
+    if (recipient_public_key is None and email_pattern.match(recipient)):
         # Record in DB
         await record_contact_transaction(transaction,
                                          request['session']['user_id'],
@@ -740,8 +765,10 @@ async def contact_transaction(request):
                                          request['session']['user_id'],
                                          request['db'])
         return response.json({"success": ["Email sent notifying recipient"]})
-    else:
+    elif recipient_public_key:
         return response.json({'public_key': recipient_public_key[0]})
+    else:
+        return error_response([NO_PUBLIC_KEY])
 
 
 @app.route('/jsonrpc', methods=['POST'])
@@ -759,14 +786,20 @@ async def json_rpc_bridge(request):
 @authorized()
 async def request_funds(request):
     fund_request = request.json
-    if fund_request.keys() != {'to_email_address', 'email_address',
+    if fund_request.keys() != {'recipient', 'email_address',
                                'currency', 'amount'}:
         return error_response([MISSING_FIELDS])
     currency = fund_request['currency']
     amount = fund_request['amount']
     from_email_address = fund_request['email_address']
-    to_email_address = fund_request['to_email_address']
+    to_email_address = fund_request['recipient']
     request_time = dt.now().strftime('%B %d, %Y - %H:%m')
+    if not email_pattern.match(to_email_address):
+        user_record = await request['db'].fetchrow(
+            SELECT_EMAIL_FROM_USERNAME_SQL, to_email_address)
+        if user_record is None:
+            return error_response([USER_NOT_FOUND])
+        to_email_address = user_record['email_address']
 
     # TODO: Include push notification here
 

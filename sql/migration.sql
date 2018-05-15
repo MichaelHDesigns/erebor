@@ -1,4 +1,5 @@
 ALTER TABLE users ADD COLUMN receive_emails_enabled BOOL DEFAULT True;
+ALTER TABLE users ADD COLUMN username TEXT UNIQUE;
 ALTER TABLE contact_transactions ADD COLUMN created TIMESTAMP(0);
 
 CREATE TYPE e_currency AS ENUM (

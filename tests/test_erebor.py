@@ -15,6 +15,7 @@ from . import TestErebor
 test_user_data = {'first_name': 'Testy',
                   'last_name': 'McTestface',
                   'email_address': 'test@example.com',
+                  'username': 'xXtestyXx',
                   'password': 't3st_password',
                   'phone_number': '19105552323'}
 
@@ -54,8 +55,9 @@ class TestResources(TestErebor):
         u_data, session_id = new_user(app)
 
         assert u_data.keys() == {'uid', 'first_name', 'last_name',
-                                 'email_address', 'receive_emails_enabled',
-                                 'phone_number', 'sms_2fa_enabled'}
+                                 'email_address', 'username',
+                                 'receive_emails_enabled', 'phone_number',
+                                 'sms_2fa_enabled'}
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
@@ -68,12 +70,57 @@ class TestResources(TestErebor):
         # Doing this doesn't break the db connection
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test2@example.com'
+        other_test_user_data['username'] = 'c00l_n3w_us3r'
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         o_data = response.json
         assert o_data.keys() == {'uid', 'first_name', 'last_name',
-                                 'email_address', 'receive_emails_enabled',
-                                 'phone_number', 'sms_2fa_enabled'}
+                                 'email_address', 'username',
+                                 'receive_emails_enabled', 'phone_number',
+                                 'sms_2fa_enabled'}
+
+        # Users can have one account per username
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['email_address'] = 'test3@example.com'
+        other_test_user_data['username'] = 'c00l_n3w_us3r'
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        e_data = response.json
+        assert e_data == {'errors':
+                          [{'code': 107, 'message': 'Error creating user'}]}
+
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['email_address'] = 'test4@example.com'
+        other_test_user_data['username'] = 'new_user_@@!'
+
+        # Username cannot have special characters
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        e_data = response.json
+        assert e_data == {'errors': [{'code': 109,
+                                      'message': 'Invalid username'}]}
+
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['email_address'] = 'test4@example.com'
+        other_test_user_data['username'] = 'new_user_of_length_greater_than_32'
+
+        # Username cannot be greater than 32 characters
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        e_data = response.json
+        assert e_data == {'errors': [{'code': 109,
+                                      'message': 'Invalid username'}]}
+
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['email_address'] = 'not_an_email@@test.org'
+        other_test_user_data['username'] = 'new_user_name'
+
+        # Email must be a valid email
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        e_data = response.json
+        assert e_data == {'errors': [{'code': 110,
+                                      'message': 'Invalid email address'}]}
 
     def test_get_user(self):
         u_data, session_id = new_user(app)
@@ -82,8 +129,9 @@ class TestResources(TestErebor):
             '/users/{}'.format(u_data['uid']),
             cookies={'session_id': session_id})
         data = response.json
-        assert data.keys() == {'uid', 'email_address', 'first_name',
-                               'last_name', 'phone_number', 'sms_2fa_enabled'}
+        assert data.keys() == {'uid', 'email_address', 'username',
+                               'first_name', 'last_name', 'phone_number',
+                               'sms_2fa_enabled'}
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
@@ -93,7 +141,8 @@ class TestResources(TestErebor):
         change_data = {'first_name': 'Changey',
                        'last_name': 'McChangeface',
                        'phone_number': '12345678989',
-                       'email_address': 'changed@example.com'}
+                       'email_address': 'changed@example.com',
+                       'username': 'changed_user_nam3'}
 
         request, response = app.test_client.put(
             '/users/{}/'.format(u_data['uid']),
@@ -118,8 +167,9 @@ class TestResources(TestErebor):
 
         request, response = app.test_client.post(
             '/login',
-            data=json.dumps({'email_address': test_user_data['email_address'],
-                             'password': test_user_data['password']}))
+            data=json.dumps({
+                'username_or_email': test_user_data['email_address'],
+                'password': test_user_data['password']}))
         new_cookies = response.cookies
         assert new_cookies.keys() == {'session_id'}
 
@@ -140,6 +190,27 @@ class TestResources(TestErebor):
         request, response = app.test_client.get(
             '/users/{}/'.format(u_data['uid']),
             cookies={'session_id': new_session_id})
+
+        assert response.status == 200
+
+        # User logs in with their username instead
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({
+                'username_or_email': test_user_data['username'],
+                'password': test_user_data['password']}))
+        session_from_username = response.cookies['session_id'].value
+        assert session_from_username != new_session_id
+
+        request, response = app.test_client.get(
+            '/users/{}'.format(u_data['uid']),
+            cookies={'session_id': new_session_id})
+
+        assert response.status == 403
+
+        request, response = app.test_client.get(
+            '/users/{}/'.format(u_data['uid']),
+            cookies={'session_id': session_from_username})
 
         assert response.status == 200
 
@@ -179,7 +250,7 @@ class TestResources(TestErebor):
             data=json.dumps(
                 {'new_password': 'test2',
                  'password': test_user_data['password'],
-                 'email_address': test_user_data['email_address']}))
+                 'username_or_email': test_user_data['email_address']}))
         assert response.status == 200
 
         request, response = app.test_client.post(
@@ -189,14 +260,38 @@ class TestResources(TestErebor):
 
         request, response = app.test_client.post(
             '/login',
-            data=json.dumps({'email_address': 'test@example.com',
+            data=json.dumps({'username_or_email': 'test@example.com',
                              'password': 'test'}))
         assert response.status == 403
 
         request, response = app.test_client.post(
             '/login',
-            data=json.dumps({'email_address': 'test@example.com',
+            data=json.dumps({'username_or_email': 'test@example.com',
                              'password': 'test2'}))
+        assert response.status == 200
+        assert response.cookies.keys() == {'session_id'}
+        new_session = response.cookies['session_id'].value
+
+        # User changes their password with their username instead
+        request, response = app.test_client.post(
+            '/change_password',
+            cookies={'session_id': new_session},
+            data=json.dumps(
+                {'new_password': 'test3',
+                 'password': 'test2',
+                 'username_or_email': test_user_data['username']}))
+        assert response.status == 200
+
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({'username_or_email': 'test@example.com',
+                             'password': 'test2'}))
+        assert response.status == 403
+
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({'username_or_email': 'test@example.com',
+                             'password': 'test3'}))
         assert response.status == 200
         assert response.cookies.keys() == {'session_id'}
 
@@ -209,6 +304,7 @@ class TestResources(TestErebor):
                              'last_name': 'Smith',
                              'phone_number': '19876543232',
                              'email_address': 'bob@example.com',
+                             'username': 'bobTHEbuilder',
                              'password': 'test'}))
 
         request, response = app.test_client.post(
@@ -216,7 +312,7 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id},
             data=json.dumps({'new_password': 'test2',
                              'password': 'test',
-                             'email_address': 'bob@example.com'}))
+                             'username_or_email': 'bob@example.com'}))
         assert response.status == 403
 
     def test_reset_password(self):
@@ -283,8 +379,9 @@ class TestResources(TestErebor):
         # User logins with new password
         request, response = app.test_client.post(
             '/login',
-            data=json.dumps({'email_address': test_user_data['email_address'],
-                             'password': 'test_pw_reset'}))
+            data=json.dumps({
+                'username_or_email': test_user_data['email_address'],
+                'password': 'test_pw_reset'}))
         new_cookies = response.cookies
         assert new_cookies.keys() == {'session_id'}
 
@@ -395,8 +492,9 @@ class TestResources(TestErebor):
 
         request, response = app.test_client.post(
             '/login',
-            data=json.dumps({'email_address': test_user_data['email_address'],
-                             'password': test_user_data['password']}))
+            data=json.dumps({
+                'username_or_email': test_user_data['email_address'],
+                'password': test_user_data['password']}))
         l_data = response.json
         assert l_data == {'success': ['2FA has been sent']}
 
@@ -417,7 +515,7 @@ class TestResources(TestErebor):
             '/2fa/sms_login',
             data=json.dumps(
                 {'sms_verification': sms_verification,
-                 'email_address': test_user_data['email_address']}))
+                 'username_or_email': test_user_data['email_address']}))
         assert response.cookies.keys() == {'session_id'}
         data = response.json
         assert data.keys() == {'success', 'user_uid'}
@@ -749,7 +847,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'first_test@example.com',
+                             'recipient': 'first_test@example.com',
                              'amount': 1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
         assert response.json == {"success": ["Email sent notifying recipient"]}
@@ -757,7 +855,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'first_test@example.com',
+                             'recipient': 'first_test@example.com',
                              'amount': 4.2, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
         assert response.json == {"success": ["Email sent notifying recipient"]}
@@ -765,7 +863,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'random_email@example.com',
+                             'recipient': 'random_email@example.com',
                              'amount': 3.14, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
         assert response.json == {"success": ["Email sent notifying recipient"]}
@@ -833,7 +931,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'test_send@example.com',
+                             'recipient': 'test_send@example.com',
                              'amount': 10, 'currency': 'ADA'}),
             cookies={'session_id': session_id})
         e_data = response.json
@@ -844,7 +942,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'test_send@example.com',
+                             'recipient': 'test_send@example.com',
                              'amount': -1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
         e_data = response.json
@@ -855,7 +953,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'test_send@example.com',
+                             'recipient': 'test_send@example.com',
                              'amount': 5, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
         e_data = response.json
@@ -867,7 +965,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'test_send@example.com',
+                             'recipient': 'test_send@example.com',
                              'amount': 10, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
         e_data = response.json
@@ -879,10 +977,21 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'test_send@example.com',
+                             'recipient': 'test_send@example.com',
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
         assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        # Recipient is a user but has no public key for currency ETH
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'xXtestyXx',
+                             'amount': 2, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {'errors': [{
+            'code': 203,
+            'message': 'No public key found for user'}]}
 
         # Register an address for the user
         request, response = app.test_client.post(
@@ -891,11 +1000,20 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
         assert response.status == 200
 
-        # Transaction returns the public key of the recipient
+        # Transaction returns the public key of the recipient based on email
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
-                             'to_email_address': 'test@example.com',
+                             'recipient': 'test@example.com',
+                             'amount': 2, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {'public_key': '0xDEADBEEF'}
+
+        # Transaction returns the public key of the recipient based on username
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'xXtestyXx',
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
         assert response.json == {'public_key': '0xDEADBEEF'}
@@ -907,7 +1025,36 @@ class TestResources(TestErebor):
             '/request_funds/',
             cookies={'session_id': session_id},
             data=json.dumps(
-                {'to_email_address': 'recipient@test.com',
+                {'recipient': 'recipient@test.com',
+                 'email_address': test_user_data['email_address'],
+                 'currency': 'BTC', 'amount': '9001'}))
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        # User requests funds using username from someone who is not a user
+        request, response = app.test_client.post(
+            '/request_funds/',
+            cookies={'session_id': session_id},
+            data=json.dumps(
+                {'recipient': 'test_recipient_user_name',
+                 'email_address': test_user_data['email_address'],
+                 'currency': 'BTC', 'amount': '9001'}))
+        e_data = response.json
+        assert e_data == {'errors': [{
+            'message': 'User not found for given username', 'code': 111}]}
+
+        other_new_user = test_user_data.copy()
+        other_new_user['email_address'] = 'recipient@test.com'
+        other_new_user['username'] = 'other_test_user'
+
+        request, response = app.test_client.post(
+            '/users/', data=json.dumps(other_new_user))
+
+        # The recipient is an actual Hoard user
+        request, response = app.test_client.post(
+            '/request_funds/',
+            cookies={'session_id': session_id},
+            data=json.dumps(
+                {'recipient': 'other_test_user',
                  'email_address': test_user_data['email_address'],
                  'currency': 'BTC', 'amount': '9001'}))
         assert response.json == {"success": ["Email sent notifying recipient"]}
