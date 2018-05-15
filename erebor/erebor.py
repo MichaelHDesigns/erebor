@@ -793,7 +793,7 @@ async def request_funds(request):
     amount = fund_request['amount']
     from_email_address = fund_request['email_address']
     to_email_address = fund_request['recipient']
-    request_time = dt.now().strftime('%B %d, %Y - %H:%m')
+    request_time = dt.now().strftime('%B %d, %Y - %I:%M%p')
     if not email_pattern.match(to_email_address):
         user_record = await request['db'].fetchrow(
             SELECT_EMAIL_FROM_USERNAME_SQL, to_email_address)
