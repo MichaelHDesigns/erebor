@@ -87,7 +87,8 @@ class TestResources(TestErebor):
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
         assert e_data == {'errors':
-                          [{'code': 107, 'message': 'Error creating user'}]}
+                          [{'code': 112,
+                            'message': 'Username already exists'}]}
 
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test4@example.com'
@@ -121,6 +122,28 @@ class TestResources(TestErebor):
         e_data = response.json
         assert e_data == {'errors': [{'code': 110,
                                       'message': 'Invalid email address'}]}
+
+    def test_account_creation_error(self):
+        u_data, session_id = new_user(app)
+
+        # Email address already exists error response
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(test_user_data))
+        e_data = response.json
+        assert response.status == 403
+        assert e_data == {'errors': [
+                {'code': 113, 'message': 'Email address already exists'}]}
+
+        other_user_data = test_user_data.copy()
+        other_user_data['email_address'] = 'other_email@test.com'
+
+        # Username already exists error response
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_user_data))
+        e_data = response.json
+        assert response.status == 403
+        assert e_data == {'errors': [
+                {'code': 112, 'message': 'Username already exists'}]}
 
     def test_get_user(self):
         u_data, session_id = new_user(app)

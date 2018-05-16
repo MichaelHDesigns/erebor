@@ -11,6 +11,7 @@ import random
 from decimal import Decimal
 import re
 
+from asyncpg.exceptions import UniqueViolationError
 from sanic import Sanic, response
 from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
@@ -29,7 +30,8 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            INVALID_PLATFORM, RATE_LIMIT_EXCEEDED,
                            INSUFFICIENT_BALANCE, NEGATIVE_AMOUNT,
                            UNSUPPORTED_CURRENCY, INVALID_USERNAME,
-                           NO_PUBLIC_KEY, INVALID_EMAIL, USER_NOT_FOUND)
+                           NO_PUBLIC_KEY, INVALID_EMAIL, USER_NOT_FOUND,
+                           USERNAME_EXISTS, EMAIL_ADDRESS_EXISTS)
 from erebor.email import Email
 from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
@@ -329,6 +331,13 @@ async def users(request):
         new_user = await db.fetchrow(
             CREATE_USER_SQL, password, first_name,
             last_name, email_address, username, phone_number, session_id)
+    except UniqueViolationError as uv_error:
+        if uv_error.constraint_name == 'users_email_address_key':
+            return error_response([EMAIL_ADDRESS_EXISTS])
+        elif uv_error.constraint_name == 'users_username_key':
+            return error_response([USERNAME_EXISTS])
+        else:
+            return error_response([GENERIC_USER])
     except Exception as e:
         logging.info('error creating user {}:{}'.format(email_address, e))
         return error_response([GENERIC_USER])

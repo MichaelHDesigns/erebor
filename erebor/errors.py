@@ -34,6 +34,10 @@ INVALID_EMAIL = {'code': 110, 'message': 'Invalid email address',
                  'status': 400}
 USER_NOT_FOUND = {'code': 111, 'message': 'User not found for given username',
                   'status': 400}
+USERNAME_EXISTS = {'code': 112, 'message': 'Username already exists',
+                   'status': 403}
+EMAIL_ADDRESS_EXISTS = {'code': 113, 'message': 'Email address already exists',
+                        'status': 403}
 RATE_LIMIT_EXCEEDED = {'code': 429, 'message': 'Too many requests.',
                        'status': 429}
 
