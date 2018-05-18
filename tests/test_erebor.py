@@ -57,7 +57,7 @@ class TestResources(TestErebor):
         assert u_data.keys() == {'uid', 'first_name', 'last_name',
                                  'email_address', 'username',
                                  'receive_emails_enabled', 'phone_number',
-                                 'sms_2fa_enabled'}
+                                 'sms_2fa_enabled', 'active'}
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
@@ -77,7 +77,7 @@ class TestResources(TestErebor):
         assert o_data.keys() == {'uid', 'first_name', 'last_name',
                                  'email_address', 'username',
                                  'receive_emails_enabled', 'phone_number',
-                                 'sms_2fa_enabled'}
+                                 'sms_2fa_enabled', 'active'}
 
         # Users can have one account per username
         other_test_user_data = test_user_data.copy()
@@ -144,6 +144,52 @@ class TestResources(TestErebor):
         assert response.status == 403
         assert e_data == {'errors': [
                 {'code': 112, 'message': 'Username already exists'}]}
+
+    def test_activate_account(self):
+        u_data, session_id = new_user(app)
+
+        SELECT_ACTIVATION_KEY = """
+        SELECT activation_key, active
+        FROM users
+        WHERE id = 1
+        """.strip()
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(SELECT_ACTIVATION_KEY)
+                result = cur.fetchone()
+        activation_key = result[0]
+        active = result[1]
+
+        assert active is False
+
+        request, response = app.test_client.get(
+            '/activate/{}'.format(activation_key),
+            data=json.dumps(test_user_data))
+
+        assert response.status == 200
+
+        SELECT_ACTIVE_STATUS = """
+        SELECT active
+        FROM users
+        WHERE id = 1
+        """.strip()
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(SELECT_ACTIVE_STATUS)
+                result = cur.fetchone()
+        active = result[0]
+
+        assert active is True
+
+        # Activation key is now expired
+        request, response = app.test_client.get(
+            '/activate/{}'.format(activation_key),
+            data=json.dumps(test_user_data))
+        e_data = response.json
+        assert e_data == {'errors': [
+            {'code': 108, 'message': 'Token is either invalid or expired'}]}
 
     def test_get_user(self):
         u_data, session_id = new_user(app)
@@ -371,7 +417,7 @@ class TestResources(TestErebor):
         e_data = response.json
         assert e_data == {
             'errors': [{
-                'message': 'Reset token is either invalid or expired',
+                'message': 'Token is either invalid or expired',
                 'code': 108
             }]
         }
@@ -394,7 +440,7 @@ class TestResources(TestErebor):
         e_data = response.json
         assert e_data == {
             'errors': [{
-                'message': 'Reset token is either invalid or expired',
+                'message': 'Token is either invalid or expired',
                 'code': 108
             }]
         }

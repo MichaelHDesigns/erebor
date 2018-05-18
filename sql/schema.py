@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS users (
     session_id TEXT,
     external_id TEXT,
     sms_verification TEXT DEFAULT Null,
-    sms_2fa_enabled BOOL DEFAULT False
+    sms_2fa_enabled BOOL DEFAULT False,
+    active BOOL DEFAULT False,
+    activation_key UUID DEFAULT uuid_generate_v4 () UNIQUE
 );
 """.strip()
 

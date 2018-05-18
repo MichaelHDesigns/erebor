@@ -282,6 +282,14 @@ FROM users
 WHERE username = $1
 """.strip()
 
+ACTIVATE_USER_SQL = """
+UPDATE users
+SET active = True
+WHERE activation_key = $1
+AND active = False
+RETURNING email_address, first_name, last_name
+""".strip()
+
 
 def authorized():
     def decorator(f):
@@ -343,16 +351,21 @@ async def users(request):
         return error_response([GENERIC_USER])
     # remove sensitive information
     new_user = {
-        k: str(v) if k == 'uid' else v for k, v in new_user.items()
+        k: str(v) if k == 'uid' or k == 'activation_key'
+        else v for k, v in new_user.items()
         if k not in {'password', 'salt', 'id',
                      'sms_verification', 'external_id'}
     }
     session_id = new_user.pop('session_id')
+    activation_key = new_user.pop('activation_key')
+    activation_url = ("https://" + str(os.getenv("INSTANCE_HOST")) +
+                      '/activate/{}'.format(activation_key))
     full_name = '{} {}'.format(first_name, last_name)
     signup_email = Email(
         email_address,
         'signup',
-        full_name=full_name
+        full_name=full_name,
+        activation_url=activation_url
     )
     signup_email.send()
     await notify_contact_on_signup(email_address, db)
@@ -389,6 +402,29 @@ async def user(request, user_uid):
             first_name, last_name, phone_number,
             email_address, username, request['session']['user_id'])
         return response.HTTPResponse(body=None, status=200)
+
+
+@app.route('/activate/<activation_key>', methods=['GET'])
+async def activate_account(request, activation_key):
+    if len(activation_key) != 36:
+        return error_response([EXPIRED_TOKEN])
+    db = app.pg
+    try:
+        user_info = await db.fetchrow(ACTIVATE_USER_SQL, activation_key)
+    except ValueError:
+        return error_response([EXPIRED_TOKEN])
+    if user_info:
+        full_name = '{} {}'.format(
+            user_info['first_name'], user_info['last_name'])
+        activated_email = Email(
+            user_info['email_address'],
+            'activated',
+            full_name=full_name
+        )
+        activated_email.send()
+        return response.redirect(
+            '/result/?action=activate&success=true')
+    return error_response([EXPIRED_TOKEN])
 
 
 @app.route('/2fa/sms_login', methods=['POST'])

@@ -41,6 +41,15 @@ UPDATE:
    'email_address': STRING,
    'username': STRING}
 
+#### /activate/{activation_key}
+
+GET
+  HTML Response: 200 OK, HTML template
+
+  OR if account is active OR token is invalid
+
+  Response: 403
+
 #### /change_password/
 
 POST:

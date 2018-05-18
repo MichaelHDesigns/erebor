@@ -26,7 +26,7 @@ TICKER_UNAVAILABLE = {'code': 106, 'message': 'Ticker currently unavailable',
 GENERIC_USER = {'code': 107, 'message': 'Error creating user', 'status': 400}
 INVALID_PLATFORM = {'code': 400, 'message': 'Invalid platform', 'status': 404}
 EXPIRED_TOKEN = {'code': 108,
-                 'message': 'Reset token is either invalid or expired',
+                 'message': 'Token is either invalid or expired',
                  'status': 403}
 INVALID_USERNAME = {'code': 109, 'message': 'Invalid username',
                     'status': 400}

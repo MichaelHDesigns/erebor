@@ -8,6 +8,8 @@ jinja_env = Environment(
 
 unsubscribe_template = jinja_env.get_template('unsubscribe.html')
 signup_email_template = jinja_env.get_template('emails/signup_email.html')
+activated_email_template = jinja_env.get_template(
+    'emails/activated_email.html')
 result_template = jinja_env.get_template('result.html')
 password_template = jinja_env.get_template('password.html')
 reset_password_email_template = jinja_env.get_template(
@@ -29,5 +31,10 @@ RESULT_ACTIONS = {
         'true': 'Your password has been changed!',
         'false': ('There was an error handling the request\n'
                   'Your password has not bee changed')
+    },
+    'activate': {
+        'true': ('Your account is now active!\n'
+                 'You can now log in with your credentials'),
+        'false': ''
     }
 }

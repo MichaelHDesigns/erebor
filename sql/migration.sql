@@ -1,6 +1,8 @@
 ALTER TABLE users ADD COLUMN receive_emails_enabled BOOL DEFAULT True;
 ALTER TABLE users ADD COLUMN username TEXT UNIQUE;
 ALTER TABLE contact_transactions ADD COLUMN created TIMESTAMP(0);
+ALTER TABLE users ADD COLUMN active BOOL DEFAULT False;
+ALTER TABLE users ADD COLUMN activation_key UUID DEFAULT uuid_generate_v4 () UNIQUE
 
 CREATE TYPE e_currency AS ENUM (
     'ETH',

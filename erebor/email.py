@@ -4,7 +4,7 @@ from botocore.exceptions import ClientError
 from erebor.render import (
     signup_email_template, reset_password_email_template,
     contact_transaction_email_template, pending_transactions_email,
-    request_funds_email_template
+    request_funds_email_template, activated_email_template
     )
 
 
@@ -17,9 +17,9 @@ CHARSET = "UTF-8"
 EMAIL_TYPES = {
     'signup': {
         'subject': "Welcome to Hoard, {full_name}!",
-        'body_text': ("Welcome to Hoard!\r\n"
-                      "Hello {full_name} - welcome to Hoard! "
-                      "Your account is now active!"),
+        'body_text': ("Hello {full_name} - welcome to Hoard! Your account"
+                      " has been created!\r\nPlease use the following url to"
+                      " activate and confirm your account: {activation_url}"),
         'body_html': signup_email_template
     },
     'password_reset': {
@@ -29,14 +29,14 @@ EMAIL_TYPES = {
         'body_html': reset_password_email_template
     },
     'contact_transactions': {
-        'subject': 'Hoard - You have {amount} pending {currency}!',
-        'body_text': ('Hello {to_email_address} - {from_email_address}'
-                      'at Hoard wishes to send you {amount}{currency}!'),
+        'subject': "Hoard - You have {amount} pending {currency}!",
+        'body_text': ("Hello {to_email_address} - {from_email_address}"
+                      "at Hoard wishes to send you {amount}{currency}!"),
         'body_html': contact_transaction_email_template
     },
     'pending_contact_transactions': {
-        'subject': 'Your contact has signed up to Hoard',
-        'body_text': ('Hello {first_name}\r\n'
+        'subject': "Your contact has signed up to Hoard",
+        'body_text': ("Hello {first_name}\r\n"
                       'Your contact {to_email_address} has just '
                       'signed up to Hoard!\r\n'
                       'This email is to serve as a reminder about the '
@@ -51,6 +51,13 @@ EMAIL_TYPES = {
                       "Amount requested {amount} {currency}\r\n"
                       "{request_time}"),
         'body_html': request_funds_email_template
+    },
+    'activated': {
+        'subject': "Your account is now active, {full_name}!",
+        'body_text': ("Welcome to Hoard!\r\n"
+                      "Hello {full_name} - welcome to Hoard! "
+                      "Your account is now active!"),
+        'body_html': activated_email_template
     }
 }
 
