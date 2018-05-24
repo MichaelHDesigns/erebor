@@ -14,6 +14,7 @@ from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
                         CREATE_CONTACT_TRANSACTIONS_SQL,
                         CREATE_CURRENCY_ENUM_SQL,
                         CREATE_ADDRESSES_TABLE_SQL)  # noqa
+app.blueprint(bp)
 
 
 class TestErebor(object):
@@ -21,7 +22,6 @@ class TestErebor(object):
     def setup_method(method):
         method.postgresql = testing.postgresql.Postgresql()
         app.db = (method.postgresql.dsn())
-        app.blueprint(bp)
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor() as cur:
                 cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')

@@ -17,8 +17,3 @@ class TestUnitTests(object):
         balance = get_balance("0xaC39b311DCEb2A4b2f5d8461c1cdaF756F4F7Ae9",
                               "ETH")
         assert balance == Decimal(4.004866859999999975)
-
-    def test_get_balance(self):
-        address = "0x7c4dd3c69357ebd158fe850b85fd7c89ffe0074c"
-        balance = get_balance(address, 'ETH')
-        assert balance == Decimal(.19314402189999999)

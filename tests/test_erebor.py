@@ -79,7 +79,7 @@ class TestResources(TestErebor):
                                  'receive_emails_enabled', 'phone_number',
                                  'sms_2fa_enabled', 'active'}
 
-        # Users can have one account per username
+        # B: Users can have one account per username
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test3@example.com'
         other_test_user_data['username'] = 'c00l_n3w_us3r'
@@ -90,33 +90,30 @@ class TestResources(TestErebor):
                           [{'code': 112,
                             'message': 'Username already exists'}]}
 
+        # B: Username cannot have special characters
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test4@example.com'
         other_test_user_data['username'] = 'new_user_@@!'
-
-        # Username cannot have special characters
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
         assert e_data == {'errors': [{'code': 109,
                                       'message': 'Invalid username'}]}
 
+        # B: Username cannot be greater than 32 characters
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test4@example.com'
         other_test_user_data['username'] = 'new_user_of_length_greater_than_32'
-
-        # Username cannot be greater than 32 characters
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
         assert e_data == {'errors': [{'code': 109,
                                       'message': 'Invalid username'}]}
 
+        # B: Email must be a valid email
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'not_an_email@@test.org'
         other_test_user_data['username'] = 'new_user_name'
-
-        # Email must be a valid email
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
@@ -126,7 +123,7 @@ class TestResources(TestErebor):
     def test_account_creation_error(self):
         u_data, session_id = new_user(app)
 
-        # Email address already exists error response
+        # B: Email address already exists error response
         request, response = app.test_client.post(
             '/users', data=json.dumps(test_user_data))
         e_data = response.json
@@ -137,7 +134,7 @@ class TestResources(TestErebor):
         other_user_data = test_user_data.copy()
         other_user_data['email_address'] = 'other_email@test.com'
 
-        # Username already exists error response
+        # B: Username already exists error response
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_user_data))
         e_data = response.json
@@ -148,6 +145,7 @@ class TestResources(TestErebor):
     def test_activate_account(self):
         u_data, session_id = new_user(app)
 
+        # Connect to the DB to retrieve the user's activation key
         SELECT_ACTIVATION_KEY = """
         SELECT activation_key, active
         FROM users
@@ -163,12 +161,14 @@ class TestResources(TestErebor):
 
         assert active is False
 
+        # B: User activates their account via the activation link
         request, response = app.test_client.get(
             '/activate/{}'.format(activation_key),
             data=json.dumps(test_user_data))
 
         assert response.status == 200
 
+        # Connect to the DB to verify active is now True
         SELECT_ACTIVE_STATUS = """
         SELECT active
         FROM users
@@ -183,7 +183,7 @@ class TestResources(TestErebor):
 
         assert active is True
 
-        # Activation key is now expired
+        # B: User clicks the link and sees an expired activation key
         request, response = app.test_client.get(
             '/activate/{}'.format(activation_key),
             data=json.dumps(test_user_data))
@@ -194,6 +194,7 @@ class TestResources(TestErebor):
     def test_get_user(self):
         u_data, session_id = new_user(app)
 
+        # B: User retrieves their account's information
         request, response = app.test_client.get(
             '/users/{}'.format(u_data['uid']),
             cookies={'session_id': session_id})
@@ -213,6 +214,7 @@ class TestResources(TestErebor):
                        'email_address': 'changed@example.com',
                        'username': 'changed_user_nam3'}
 
+        # B: User updates their account with new data
         request, response = app.test_client.put(
             '/users/{}/'.format(u_data['uid']),
             data=json.dumps(change_data),
@@ -220,6 +222,7 @@ class TestResources(TestErebor):
 
         assert response.status == 200
 
+        # B: User retrieves their account's information to see the changes
         request, response = app.test_client.get(
             '/users/{}/'.format(u_data['uid']),
             cookies={'session_id': session_id})
@@ -234,6 +237,7 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
         assert response.status == 200
 
+        # B: User logs in with their email address
         request, response = app.test_client.post(
             '/login',
             data=json.dumps({
@@ -249,20 +253,21 @@ class TestResources(TestErebor):
         new_session_id = new_cookies['session_id'].value
         assert new_session_id != session_id
 
-        # test new api key
+        # Verify old api key is invalid
         request, response = app.test_client.get(
             '/users/{}'.format(u_data['uid']),
             cookies={'session_id': session_id})
 
         assert response.status == 403
 
+        # Key from email address login is currently valid
         request, response = app.test_client.get(
             '/users/{}/'.format(u_data['uid']),
             cookies={'session_id': new_session_id})
 
         assert response.status == 200
 
-        # User logs in with their username instead
+        # B: User logs in with their username instead
         request, response = app.test_client.post(
             '/login',
             data=json.dumps({
@@ -271,12 +276,14 @@ class TestResources(TestErebor):
         session_from_username = response.cookies['session_id'].value
         assert session_from_username != new_session_id
 
+        # Verify old api key is invalid
         request, response = app.test_client.get(
             '/users/{}'.format(u_data['uid']),
             cookies={'session_id': new_session_id})
 
         assert response.status == 403
 
+        # Key from username login is currently valid
         request, response = app.test_client.get(
             '/users/{}/'.format(u_data['uid']),
             cookies={'session_id': session_from_username})
@@ -313,6 +320,7 @@ class TestResources(TestErebor):
 
         assert response.status == 200
 
+        # B: User changes their password using their email address
         request, response = app.test_client.post(
             '/change_password',
             cookies={'session_id': session_id},
@@ -327,12 +335,14 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
         assert response.status == 200
 
+        # Verify old password returns FORBIDDEN
         request, response = app.test_client.post(
             '/login',
             data=json.dumps({'username_or_email': 'test@example.com',
                              'password': 'test'}))
         assert response.status == 403
 
+        # B: User logs in with their new password
         request, response = app.test_client.post(
             '/login',
             data=json.dumps({'username_or_email': 'test@example.com',
@@ -341,7 +351,7 @@ class TestResources(TestErebor):
         assert response.cookies.keys() == {'session_id'}
         new_session = response.cookies['session_id'].value
 
-        # User changes their password with their username instead
+        # B: User changes their password with their username instead
         request, response = app.test_client.post(
             '/change_password',
             cookies={'session_id': new_session},
@@ -351,12 +361,14 @@ class TestResources(TestErebor):
                  'username_or_email': test_user_data['username']}))
         assert response.status == 200
 
+        # Verify old password returns FORBIDDEN
         request, response = app.test_client.post(
             '/login',
             data=json.dumps({'username_or_email': 'test@example.com',
                              'password': 'test2'}))
         assert response.status == 403
 
+        # B: User logs in with their new password
         request, response = app.test_client.post(
             '/login',
             data=json.dumps({'username_or_email': 'test@example.com',
@@ -376,6 +388,8 @@ class TestResources(TestErebor):
                              'username': 'bobTHEbuilder',
                              'password': 'test'}))
 
+        # B: User attempts to change their password while having another user's
+        # active API key
         request, response = app.test_client.post(
             '/change_password',
             cookies={'session_id': session_id},
@@ -387,7 +401,7 @@ class TestResources(TestErebor):
     def test_reset_password(self):
         u_data, session_id = new_user(app)
 
-        # Request for reset, email sent
+        # B: User types their email address for a password reset. Email sent
         request, response = app.test_client.post(
             '/password',
             data=json.dumps({'email_address': 'test@example.com'})
@@ -397,7 +411,8 @@ class TestResources(TestErebor):
             'success': ['If our records match you will receive an email']
         }
 
-        # Grab the reset token generated for the user
+        # Grab the reset token generated for the user which would normally be
+        # included as a link in their email
         SELECT_RESET_TOKEN_SQL = """
         SELECT reset_token, id
         FROM reset_tokens
@@ -410,7 +425,8 @@ class TestResources(TestErebor):
                     (test_user_data['email_address'],))
                 test_token, user_id = cur.fetchone()
 
-        # URL with an invalid length returns invalid token error
+        # B: User alters the reset password URL with an invalid length token
+        # and returns invalid token error
         request, response = app.test_client.get(
             '/reset_password/{}'.format(test_token + 'a'))
         assert response.status == 403
@@ -422,18 +438,20 @@ class TestResources(TestErebor):
             }]
         }
 
-        # Valid reset token returns change password form
+        # B: User sees the password reset form with their valid reset token
+        # link
         request, response = app.test_client.get(
             '/reset_password/{}'.format(test_token))
         assert response.status == 200
 
-        # User changes password with unique URL form
+        # B: User changes password with unique URL form
         request, response = app.test_client.post(
             '/reset_password/{}'.format(test_token),
             data=json.dumps({'new_password': 'test_pw_reset'}))
         assert response.status == 200
 
-        # Reset token has now been expired
+        # B: User attempts to click on the link again and sees that the
+        # reset token has now been expired
         request, response = app.test_client.get(
             '/reset_password/{}'.format(test_token))
         assert response.status == 403
@@ -445,7 +463,7 @@ class TestResources(TestErebor):
             }]
         }
 
-        # User logins with new password
+        # B: User logs in with new password
         request, response = app.test_client.post(
             '/login',
             data=json.dumps({
@@ -824,18 +842,21 @@ class TestResources(TestErebor):
         AND users.email_address = %s
         """.strip()
 
+        # B: User adds a new ETH wallet and registers the public address
         request, response = app.test_client.post(
             '/users/{}/register_address'.format(u_data['uid']),
             data=json.dumps({'currency': 'ETH', 'address': '0xDEADBEEF'}),
             cookies={'session_id': session_id})
         assert response.status == 200
 
+        # B: User adds a new BTC wallet and registers the public address
         request, response = app.test_client.post(
             '/users/{}/register_address'.format(u_data['uid']),
             data=json.dumps({'currency': 'BTC', 'address': '0xTESTBEEF'}),
             cookies={'session_id': session_id})
         assert response.status == 200
 
+        # Retrieve user's BTC address to verify it has been set
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_ADDRESS_SQL,
@@ -845,6 +866,7 @@ class TestResources(TestErebor):
         assert result['address'] == '0xTESTBEEF'
         assert result['currency'] == 'BTC'
 
+        # Retrieve user's ETH address to verify it has been set
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_ADDRESS_SQL,
@@ -853,13 +875,15 @@ class TestResources(TestErebor):
         assert result['address'] == '0xDEADBEEF'
         assert result['currency'] == 'ETH'
 
-        # Register a new address for ETH
+        # B: User decides to create a new ETH wallet to serve as their default
+        # public ETH address
         request, response = app.test_client.post(
             '/users/{}/register_address'.format(u_data['uid']),
             data=json.dumps({'currency': 'ETH', 'address': '0xNEWETHADDRESS'}),
             cookies={'session_id': session_id})
         assert response.status == 200
 
+        # Retrieve user's ETH address to verify it has been changed
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_ADDRESS_SQL,
@@ -868,13 +892,15 @@ class TestResources(TestErebor):
         assert result['address'] == '0xNEWETHADDRESS'
         assert result['currency'] == 'ETH'
 
-        # Register new address for BTC
+        # B: User decides to create a new BTC wallet to serve as their default
+        # public BTC address
         request, response = app.test_client.post(
             '/users/{}/register_address'.format(u_data['uid']),
             data=json.dumps({'currency': 'BTC', 'address': '0xNEWBTCADDRESS'}),
             cookies={'session_id': session_id})
         assert response.status == 200
 
+        # Retrieve user's BTC address to verify it has been changed
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_ADDRESS_SQL,
@@ -883,6 +909,8 @@ class TestResources(TestErebor):
         assert result['address'] == '0xNEWBTCADDRESS'
         assert result['currency'] == 'BTC'
 
+        # Retrieve all current registered public addresses and verify they are
+        # the ones set by the user above
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute('SELECT * FROM public_addresses')
@@ -911,7 +939,7 @@ class TestResources(TestErebor):
         AND c_trans.to_email_address = %s
         """.strip()
 
-        # User makes three contact transactions to contacts that are not
+        # B: User makes three contact transactions to contacts that are not
         # currently signed up with Hoard
         request, response = app.test_client.post(
             '/contacts/transaction/',
@@ -938,8 +966,8 @@ class TestResources(TestErebor):
         assert response.json == {"success": ["Email sent notifying recipient"]}
         # ---------------------------------------------------------------------
 
-        # Pending transactions for user first_test@example.com is a total of
-        # two from above
+        # Retrive pending transactions for user first_test@example.com
+        # and verify there is a total of two
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_CONTACT_TRANSACTIONS,
@@ -957,7 +985,8 @@ class TestResources(TestErebor):
              'currency': 'ETH', 'amount': 1.0,
              'created': datetime.now().replace(microsecond=0, second=0)}]
 
-        # Another pending transaction to a different email is a total of one
+        # Retrive pending transactions for user random_email@example.com
+        # and verify there is a total of one
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_CONTACT_TRANSACTIONS,
@@ -970,6 +999,8 @@ class TestResources(TestErebor):
              'currency': 'BTC', 'amount': 3.14,
              'created': datetime.now().replace(microsecond=0, second=0)}]
 
+        # B: User with two pending contact transactions signs up to Hoard and
+        # the sender receives an email indicating their contact is now a user
         new_user_data = {'first_name': 'First',
                          'last_name': 'McFirstyson',
                          'email_address': 'first_test@example.com',
@@ -987,7 +1018,7 @@ class TestResources(TestErebor):
                 '"result": "0x37942530c308b7e7",'
                 '"final_balance": 556484529}')))
 
-        # Missing fields error response
+        # B: User sees missing fields error response
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'blah': 'blah'}),
@@ -996,7 +1027,7 @@ class TestResources(TestErebor):
         assert e_data == {'errors': [{'message': 'Missing fields',
                                      'code': 100}]}
 
-        # Unsupported currency error response
+        # B: User sees their currency is currently unsupported
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1007,7 +1038,7 @@ class TestResources(TestErebor):
         assert e_data == {'errors': [{'message': 'Unsupported Currency',
                                      'code': 202}]}
 
-        # Negative balance error response
+        # B: User attempts to make a transaction with a negative amount
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1018,7 +1049,8 @@ class TestResources(TestErebor):
         assert e_data == {'errors': [{'message': 'Invalid amount',
                                      'code': 201}]}
 
-        # Insufficient balance error response for ETH
+        # B: User attempts to make a transaction from an address that has
+        # not enough funds in ETH
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1030,7 +1062,8 @@ class TestResources(TestErebor):
                                      'code': 200}]}
         assert response.status == 403
 
-        # Insufficient balance error response for BTC
+        # B: User attempts to make a transaction from an address that has
+        # not enough funds in BTC
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1042,7 +1075,8 @@ class TestResources(TestErebor):
                                      'code': 200}]}
         assert response.status == 403
 
-        # Recipient email address has no Hoard account
+        # B: User transacts with their contact who has no Hoard account
+        # via email address
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1051,7 +1085,8 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
         assert response.json == {"success": ["Email sent notifying recipient"]}
 
-        # Recipient is a user but has no public key for currency ETH
+        # B: User transacts with their contact who has a Hoard account
+        # via username but the recipient has no public key registered
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1062,14 +1097,15 @@ class TestResources(TestErebor):
             'code': 203,
             'message': 'No public key found for user'}]}
 
-        # Register an address for the user
+        # B: Recipient user creates and registers their ETH address
         request, response = app.test_client.post(
             '/users/{}/register_address'.format(u_data['uid']),
             data=json.dumps({'currency': 'ETH', 'address': '0xDEADBEEF'}),
             cookies={'session_id': session_id})
         assert response.status == 200
 
-        # Transaction returns the public key of the recipient based on email
+        # B: User transacts with another Hoard user via email address and
+        # the public key of the recipient is shown
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1078,7 +1114,8 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
         assert response.json == {'public_key': '0xDEADBEEF'}
 
-        # Transaction returns the public key of the recipient based on username
+        # B: User transacts with another Hoard user via username and
+        # the public key of the recipient is shown
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -1090,6 +1127,8 @@ class TestResources(TestErebor):
     def test_request_funds(self):
         u_data, session_id = new_user(app)
 
+        # B: User requests funds from someone who is not a Hoard user using
+        # their email address
         request, response = app.test_client.post(
             '/request_funds/',
             cookies={'session_id': session_id},
@@ -1099,7 +1138,8 @@ class TestResources(TestErebor):
                  'currency': 'BTC', 'amount': '9001'}))
         assert response.json == {"success": ["Email sent notifying recipient"]}
 
-        # User requests funds using username from someone who is not a user
+        # B: User attempts to request funds from someone who is not a Hoard
+        # user using a username that does not exist
         request, response = app.test_client.post(
             '/request_funds/',
             cookies={'session_id': session_id},
@@ -1118,7 +1158,8 @@ class TestResources(TestErebor):
         request, response = app.test_client.post(
             '/users/', data=json.dumps(other_new_user))
 
-        # The recipient is an actual Hoard user
+        # B: User posts the same transaction to 'test_recipient_user_name' only
+        # after they have signed up
         request, response = app.test_client.post(
             '/request_funds/',
             cookies={'session_id': session_id},
