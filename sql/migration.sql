@@ -3,6 +3,7 @@ ALTER TABLE users ADD COLUMN username TEXT UNIQUE;
 ALTER TABLE contact_transactions ADD COLUMN created TIMESTAMP(0);
 ALTER TABLE users ADD COLUMN active BOOL DEFAULT False;
 ALTER TABLE users ADD COLUMN activation_key UUID DEFAULT uuid_generate_v4 () UNIQUE
+ALTER TABLE contact_transactions ADD COLUMN confirmed BOOL DEFAULT NULL;
 
 CREATE TYPE e_currency AS ENUM (
     'ETH',
@@ -30,5 +31,6 @@ CREATE TABLE IF NOT EXISTS contact_transactions (
     user_id INTEGER REFERENCES users(id),
     currency TEXT,
     amount FLOAT,
-    created TIMESTAMP(0);
+    created TIMESTAMP(0),
+    confirmed BOOL DEFAULT NULL
 );

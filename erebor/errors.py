@@ -38,6 +38,8 @@ USERNAME_EXISTS = {'code': 112, 'message': 'Username already exists',
                    'status': 403}
 EMAIL_ADDRESS_EXISTS = {'code': 113, 'message': 'Email address already exists',
                         'status': 403}
+INVALID_TRANSACTION_UID = {'code': 114, 'message': 'Invalid transaction UID',
+                           'status': 400}
 RATE_LIMIT_EXCEEDED = {'code': 429, 'message': 'Too many requests.',
                        'status': 429}
 

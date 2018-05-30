@@ -1124,6 +1124,124 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
         assert response.json == {'public_key': '0xDEADBEEF'}
 
+    def test_contact_transaction_data(self):
+        u_data, session_id = new_user(app)
+
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}')))
+
+        # B: User transacts with their contact who has no Hoard account
+        # via email address
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'first_test@example.com',
+                             'amount': 1, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        # Retrieve the contact transaction from the DB to get its UID that
+        # would normally be in the push notification
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('SELECT * FROM contact_transactions WHERE id = 1')
+                result = cur.fetchone()
+        trans_uid = result['uid']
+
+        # B: After receiving the notification, user taps on it to retrieve data
+        request, response = app.test_client.get(
+            '/contacts/transaction_data/{}'.format(trans_uid),
+            cookies={'session_id': session_id}
+        )
+        assert response.status == 200
+
+        # B: User attempts to use an invalid transaction UID
+        # which returns an error response
+        request, response = app.test_client.get(
+            '/contacts/transaction_data/{}'.format(
+                'aa40c00e-79e7-438d-8c40-0bd31951cf54'),
+            cookies={'session_id': session_id}
+        )
+        assert response.json.keys() == {'errors'}
+        assert response.status == 400
+
+    def test_contact_transaction_confirmation(self):
+        u_data, session_id = new_user(app)
+
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}')))
+
+        # B: User transacts with their contact who has no Hoard account
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'first_test@example.com',
+                             'amount': 1, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        # Retrieve the contact transaction UID
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('SELECT * FROM contact_transactions WHERE id = 1')
+                result = cur.fetchone()
+        trans_uid = result['uid']
+        confirmed = result['confirmed']
+        # Transaction has not been confirmed or denied yet
+        assert confirmed is None
+
+        # B: User confirms the transaction
+        request, response = app.test_client.post(
+            '/contacts/transaction_confirmation/{}'.format(trans_uid),
+            cookies={'session_id': session_id},
+            data=json.dumps({'confirmed': True})
+        )
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('SELECT * FROM contact_transactions WHERE id = 1')
+                result = cur.fetchone()
+        confirmed = result['confirmed']
+        assert confirmed is True
+
+        # B: User transacts with their contact who has no Hoard account
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xBTCADDRESS',
+                             'recipient': 'first_test@example.com',
+                             'amount': 2, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('SELECT * FROM contact_transactions WHERE id = 2')
+                result = cur.fetchone()
+        trans_uid = result['uid']
+        confirmed = result['confirmed']
+        # Transaction has not been confirmed or denied yet
+        assert confirmed is None
+
+        # B: User denies the transaction
+        request, response = app.test_client.post(
+            '/contacts/transaction_confirmation/{}'.format(trans_uid),
+            cookies={'session_id': session_id},
+            data=json.dumps({'confirmed': False})
+        )
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('SELECT * FROM contact_transactions WHERE id = 2')
+                result = cur.fetchone()
+        confirmed = result['confirmed']
+        assert confirmed is False
+
     def test_request_funds(self):
         u_data, session_id = new_user(app)
 

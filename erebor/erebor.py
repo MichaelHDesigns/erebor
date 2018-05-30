@@ -31,7 +31,8 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            INSUFFICIENT_BALANCE, NEGATIVE_AMOUNT,
                            UNSUPPORTED_CURRENCY, INVALID_USERNAME,
                            NO_PUBLIC_KEY, INVALID_EMAIL, USER_NOT_FOUND,
-                           USERNAME_EXISTS, EMAIL_ADDRESS_EXISTS)
+                           USERNAME_EXISTS, EMAIL_ADDRESS_EXISTS,
+                           INVALID_TRANSACTION_UID)
 from erebor.email import Email
 from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
@@ -252,6 +253,18 @@ SELECT users.email_address, users.first_name, c_trans.to_email_address,
 FROM contact_transactions as c_trans, users
 WHERE c_trans.user_id = users.id
 AND c_trans.to_email_address = $1
+""".strip()
+
+SELECT_CONTACT_TRANSACTION_DATA = """
+SELECT to_email_address, currency, amount, created
+FROM contact_transactions
+WHERE uid = $1
+""".strip()
+
+UPDATE_TRANSACTION_CONFIRMATION_SQL = """
+UPDATE contact_transactions
+SET confirmed = $1
+WHERE uid = $2
 """.strip()
 
 REGISTER_ADDRESS_SQL = """
@@ -814,6 +827,37 @@ async def contact_transaction(request):
         return response.json({'public_key': recipient_public_key[0]})
     else:
         return error_response([NO_PUBLIC_KEY])
+
+
+@app.route('/contacts/transaction_data/<transaction_uid>', methods=['GET'])
+@authorized()
+async def contact_transaction_data(request, transaction_uid):
+    try:
+        transaction = await request['db'].fetchrow(
+            SELECT_CONTACT_TRANSACTION_DATA, transaction_uid)
+    except ValueError:
+        return error_response([INVALID_TRANSACTION_UID])
+    return (response.json(dict(transaction)) if transaction else
+            error_response([INVALID_TRANSACTION_UID]))
+
+
+@app.route('/contacts/transaction_confirmation/<transaction_uid>',
+           methods=['POST'])
+@authorized()
+async def contact_transaction_confirmation(request, transaction_uid):
+    confirmation = request.json
+    if confirmation.keys() != {'confirmed'}:
+        return error_response([MISSING_FIELDS])
+    confirmation_value = confirmation['confirmed']
+    try:
+        await request['db'].execute(
+            UPDATE_TRANSACTION_CONFIRMATION_SQL,
+            confirmation_value, transaction_uid)
+    except ValueError:
+        return error_response([INVALID_TRANSACTION_UID])
+    return (response.json({'success': 'You have confirmed the transaction'}) if
+            confirmation_value else
+            response.json({'success': 'You have denied the transaction'}))
 
 
 @app.route('/jsonrpc', methods=['POST'])

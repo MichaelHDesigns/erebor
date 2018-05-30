@@ -159,6 +159,24 @@ POST:
 
   Response: {'public_key': recipient_public_key}
 
+#### /contacts/transaction_data/{transaction_uid}
+
+GET:
+  {'to_email_address': STRING,
+   'currency': STRING,
+   'amount': FLOAT,
+   'created': INTEGER (EPOCH timestamp)}
+
+#### /contacts/transaction_confirmation/{transaction_uid}
+
+POST:
+  - confirmed (BOOLEAN)
+
+  Response: {"success": "You have confirmed the transaction"}
+
+  OR if confirmed is FALSE
+
+  Response: {"success": "You have denied the transaction"}
 
 ### KYC/AML/Identity Verification
 

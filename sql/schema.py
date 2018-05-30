@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS contact_transactions (
     user_id INTEGER REFERENCES users(id),
     currency e_currency,
     amount FLOAT,
-    created TIMESTAMP(0)
+    created TIMESTAMP(0),
+    confirmed BOOL DEFAULT NULL
 );
 """.strip()
 
