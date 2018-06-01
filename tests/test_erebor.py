@@ -1124,6 +1124,34 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id})
         assert response.json == {'public_key': '0xDEADBEEF'}
 
+        # Set up mock to return appropriate values through subsequent infura
+        # requests: get_symbol, get_balance, get_decimal
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000034f4d470000000000000000000000000000000000000000000000000000000000",'  # noqa
+                '"final_balance": 556484529}'))).and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}'))).and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x0000000000000000000000000000000000000000000000000000000000000012",'  # noqa
+                '"final_balance": 556484529}')))
+
+        # B: User transacts the 'OMG' token with another Hoard user
+        # via email address
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps(
+                {'sender': '0x1111111111111111111111111111111111111111',
+                 'recipient': 'test@example.com',
+                 'amount': 2,
+                 'currency': '0x0d729b3e930521e95de0efbdcd573f4cdc697b82'}),
+            cookies={'session_id': session_id})
+        assert response.json == {'public_key': '0xDEADBEEF'}
+
     def test_contact_transaction_data(self):
         u_data, session_id = new_user(app)
 

@@ -8,7 +8,6 @@ import hmac
 import logging
 import os
 import random
-from decimal import Decimal
 import re
 
 from asyncpg.exceptions import UniqueViolationError
@@ -38,6 +37,7 @@ from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
 from erebor.logs import logging_config
 from erebor.db import bp
+from erebor.blockchain import get_symbol, get_balance
 
 
 ETH_NETWORK = (os.environ.get("ETH_NETWORK") if not os.getenv('erebor_test')
@@ -766,30 +766,6 @@ async def notify_contact_transaction(transaction, user_id, db):
     notify_email.send()
 
 
-def get_balance(address, currency):
-    if currency == 'ETH':
-        params = {
-            "token": INFURA_API_KEY,
-            "params": json.dumps([address, "latest"])
-        }
-        balance_req = requests.get(
-            "https://api.infura.io/v1/jsonrpc/{}/"
-            "eth_getBalance".format(ETH_NETWORK), params=params)
-        balance = balance_req.json().get('result')
-        if balance is None:
-            return 0
-        return Decimal(float.fromhex(balance)/(10e+17))
-    elif currency == 'BTC':
-        balance_req = requests.get(
-            "https://blockchain.info/rawaddr/{}"
-            "?limit=0".format(address))
-        try:
-            balance = balance_req.json().get('final_balance')
-        except json.decoder.JSONDecodeError:
-            return 0
-        return balance / 100000000.0
-
-
 @app.route('/contacts/transaction/', methods=['POST'])
 @authorized()
 async def contact_transaction(request):
@@ -801,7 +777,13 @@ async def contact_transaction(request):
     currency = transaction['currency']
     sender_address = transaction['sender']
     amount = transaction['amount']
-    if currency not in ['ETH', 'BTC']:
+    symbol = None
+    if len(currency) == 42:
+        symbol = get_symbol(currency)
+        if symbol is None:
+            return error_response([UNSUPPORTED_CURRENCY])
+        transaction['currency'] = symbol
+    elif currency not in ['ETH', 'BTC']:
         return error_response([UNSUPPORTED_CURRENCY])
     if amount <= 0:
         return error_response([NEGATIVE_AMOUNT])
@@ -809,7 +791,7 @@ async def contact_transaction(request):
         return error_response([INSUFFICIENT_BALANCE])
     recipient_public_key = await public_key_for_user(
         recipient,
-        currency,
+        currency if not symbol else 'ETH',
         request['db']
     )
     if (recipient_public_key is None and email_pattern.match(recipient)):
