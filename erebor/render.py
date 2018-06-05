@@ -21,6 +21,9 @@ pending_transactions_email = jinja_env.get_template(
 request_funds_email_template = jinja_env.get_template(
     'emails/request_funds_email.html'
 )
+forgot_username_template = jinja_env.get_template(
+    'emails/forgot_username_email.html'
+)
 
 RESULT_ACTIONS = {
     'unsubscribe': {

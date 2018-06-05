@@ -4,7 +4,8 @@ from botocore.exceptions import ClientError
 from erebor.render import (
     signup_email_template, reset_password_email_template,
     contact_transaction_email_template, pending_transactions_email,
-    request_funds_email_template, activated_email_template
+    request_funds_email_template, activated_email_template,
+    forgot_username_template
     )
 
 
@@ -58,6 +59,12 @@ EMAIL_TYPES = {
                       "Hello {full_name} - welcome to Hoard! "
                       "Your account is now active!"),
         'body_html': activated_email_template
+    },
+    'forgot_username': {
+        'subject': "Hoard - Forgot Username",
+        'body_text': ('Hello {first_name} - your username is:\r\n'
+                      '{username}'),
+        'body_html': forgot_username_template
     }
 }
 

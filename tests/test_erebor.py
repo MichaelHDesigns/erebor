@@ -100,10 +100,10 @@ class TestResources(TestErebor):
         assert e_data == {'errors': [{'code': 109,
                                       'message': 'Invalid username'}]}
 
-        # B: Username cannot be greater than 32 characters
+        # B: Username cannot be greater than 18 characters
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test4@example.com'
-        other_test_user_data['username'] = 'new_user_of_length_greater_than_32'
+        other_test_user_data['username'] = 'new_user_of_length_greater_than_18'
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
@@ -475,6 +475,26 @@ class TestResources(TestErebor):
         data = response.json
         assert data.keys() == {'success', 'user_uid'}
         assert len(data['user_uid']) == 36
+
+    def test_forgot_username(self):
+        u_data, session_id = new_user(app)
+
+        # B: User requests their forgotten username using their email address
+        request, response = app.test_client.post(
+            '/forgot_username',
+            data=json.dumps({
+                'email_address': test_user_data['email_address']}))
+        assert response.json == {
+            'success': ['If our records match you will receive an email']}
+
+        # B: User attempts to get the username of an invalid email
+        request, response = app.test_client.post(
+            '/forgot_username',
+            data=json.dumps({
+                'email_address': 'not_someones_email@email.com'}))
+        # Response is the same to prevent phishing and enumeration
+        assert response.json == {
+            'success': ['If our records match you will receive an email']}
 
     def test_email_preferences(self):
         u_data, session_id = new_user(app)

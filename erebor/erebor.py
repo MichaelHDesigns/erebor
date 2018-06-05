@@ -295,6 +295,12 @@ FROM users
 WHERE username = $1
 """.strip()
 
+SELECT_USERNAME_FNAME_FROM_EMAIL_SQL = """
+SELECT username, first_name
+FROM users
+WHERE email_address = $1
+""".strip()
+
 ACTIVATE_USER_SQL = """
 UPDATE users
 SET active = True
@@ -344,7 +350,7 @@ async def users(request):
     password = request.json['password']
     username = request.json['username']
     if (username_pattern.search(username) or
-       len(username) > 32 or len(username) < 3):
+       len(username) > 18 or len(username) < 3):
         return error_response([INVALID_USERNAME])
     if not email_pattern.match(email_address):
         return error_response([INVALID_EMAIL])
@@ -604,6 +610,25 @@ async def reset_password(request, token):
                 {'success': ['Your password has been changed']})
     else:
         return error_response([EXPIRED_TOKEN])
+
+
+@app.route('/forgot_username', methods=['POST'])
+async def forgot_username(request):
+    if request.json.keys() != {'email_address'}:
+        return error_response([MISSING_FIELDS])
+    email_address = request.json['email_address']
+    db = app.pg
+    user_record = await db.fetchrow(SELECT_USERNAME_FNAME_FROM_EMAIL_SQL,
+                                    email_address)
+    if user_record:
+        forgot_username_email = Email(email_address,
+                                      'forgot_username',
+                                      username=user_record['username'],
+                                      first_name=user_record['first_name'])
+        forgot_username_email.send()
+    return response.json(
+        {'success': ['If our records match you will receive an email']}
+    )
 
 
 @app.route('/email_preferences', methods=['PUT', 'GET'])
