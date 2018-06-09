@@ -793,6 +793,7 @@ class TestResources(TestErebor):
             '/support', data=json.dumps({
                 'description': 'Im experiencing an error!',
                 'subject': 'There is an error here',
+                'name': test_user_data['first_name'],
                 'email_address': test_user_data['email_address']
             }),
             cookies={'session_id': session_id}
@@ -804,6 +805,7 @@ class TestResources(TestErebor):
             '/support', data=json.dumps({
                 'description': 'Im experiencing an error with the wallet!',
                 'subject': 'There is an error here in the wallet',
+                'name': 'Bob',
                 'email_address': 'wallet_user@example.com',
             }),
         )

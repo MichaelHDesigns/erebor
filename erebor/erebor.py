@@ -727,16 +727,17 @@ async def ca_search_id(request, search_id):
 @app.route('/support', methods=['POST'])
 async def zen_support(request):
     if not all(item in list(request.json.keys()) for
-               item in ['description', 'email_address']):
+               item in ['description', 'email_address', 'name']):
         return error_response([MISSING_FIELDS])
     description = request.json['description']
     email_address = request.json['email_address']
+    name = request.json['name']
     subject = request.json.get('subject')
     user_info = {'email_address': email_address}
     create_zendesk_ticket(description, user_info,
                           subject=subject,
                           requester=User(
-                              name=email_address,
+                              name=name,
                               email=email_address,
                               verified=True
                           ))
