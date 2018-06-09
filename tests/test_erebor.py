@@ -29,6 +29,24 @@ def new_user(app):
     return u_data, session_id
 
 
+def activate_user(app):
+    SELECT_ACTIVATION_KEY = """
+    SELECT activation_key
+    FROM users
+    WHERE id = 1
+    """.strip()
+
+    with psycopg2.connect(**app.db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(SELECT_ACTIVATION_KEY)
+            result = cur.fetchone()
+    activation_key = result[0]
+
+    request, response = app.test_client.get(
+        '/activate/{}'.format(activation_key),
+        data=json.dumps(test_user_data))
+
+
 class TestResources(TestErebor):
 
     def test_health(self):
@@ -976,6 +994,7 @@ class TestResources(TestErebor):
                 '"result": "0x37942530c308b7e7",'
                 '"final_balance": 556484529}')))
         u_data, session_id = new_user(app)
+        activate_user(app)
 
         SELECT_CONTACT_TRANSACTIONS = """
         SELECT users.email_address, users.first_name, c_trans.to_email_address,
@@ -1058,6 +1077,7 @@ class TestResources(TestErebor):
 
     def test_contact_transaction(self):
         u_data, session_id = new_user(app)
+        activate_user(app)
 
         flexmock(requests).should_receive('get').and_return(
             flexmock(json=lambda: json.loads(
@@ -1201,6 +1221,7 @@ class TestResources(TestErebor):
 
     def test_contact_transaction_data(self):
         u_data, session_id = new_user(app)
+        activate_user(app)
 
         flexmock(requests).should_receive('get').and_return(
             flexmock(json=lambda: json.loads(
@@ -1245,6 +1266,7 @@ class TestResources(TestErebor):
 
     def test_contact_transaction_confirmation(self):
         u_data, session_id = new_user(app)
+        activate_user(app)
 
         flexmock(requests).should_receive('get').and_return(
             flexmock(json=lambda: json.loads(
@@ -1319,6 +1341,7 @@ class TestResources(TestErebor):
 
     def test_request_funds(self):
         u_data, session_id = new_user(app)
+        activate_user(app)
 
         # B: User requests funds from someone who is not a Hoard user using
         # their email address
