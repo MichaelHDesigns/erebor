@@ -736,6 +736,7 @@ async def zen_support(request):
     create_zendesk_ticket(description, user_info,
                           subject=subject,
                           requester=User(
+                              name=email_address,
                               email=email_address,
                               verified=True
                           ))
