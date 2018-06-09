@@ -18,7 +18,7 @@ from sanic_limiter import Limiter, get_remote_address, RateLimitExceeded
 from twilio.rest import Client
 import requests
 from zenpy import Zenpy
-from zenpy.lib.api_objects import Ticket
+from zenpy.lib.api_objects import Ticket, User
 import boto3
 from botocore.exceptions import ClientError
 
@@ -91,15 +91,21 @@ def refresh_ticker():
         ticker_last_update = dt.utcnow()
 
 
-def create_zendesk_ticket(ca_response, user_info):
+def create_zendesk_ticket(description,
+                          user_info,
+                          subject=None,
+                          recipient=None,
+                          requester=None):
     zd_credentials = {'email': os.environ.get('ZD_EMAIL'),
                       'token': os.environ.get('ZD_TOKEN'),
                       'subdomain': os.environ.get('ZD_SUBDOMAIN')}
     zenpy_client = Zenpy(**zd_credentials)
     zenpy_client.tickets.create(
-        Ticket(subject="Comply Advantage Hit",
+        Ticket(subject=subject,
+               recipient=recipient,
+               requester=requester,
                description=json.dumps({"user_info": user_info,
-                                       "ca_response": ca_response})))
+                                       "data": description})))
 
 
 PASSWORD_ACCESS_SQL = """
@@ -701,7 +707,8 @@ async def ca_search(request):
             user_info = await db.fetchrow(SELECT_USER_SQL,
                                           request['session']['user_id'])
             user_info = dict(user_info)
-            create_zendesk_ticket(ca_response, user_info)
+            create_zendesk_ticket(ca_response,
+                                  user_info, subject="Comply Advantage Hit")
     # DL: Do we actually need to provide GET requests to the mobile app?
     elif request.method == 'GET':
         ca_response = requests.get(url)
@@ -715,6 +722,24 @@ async def ca_search_id(request, search_id):
         search_id, os.environ.get('COMPLY_ADVANTAGE_API_KEY'))
     ca_response = requests.get(url)
     return response.json(ca_response)
+
+
+@app.route('/support', methods=['POST'])
+async def zen_support(request):
+    if not all(item in list(request.json.keys()) for
+               item in ['description', 'email_address']):
+        return error_response([MISSING_FIELDS])
+    description = request.json['description']
+    email_address = request.json['email_address']
+    subject = request.json.get('subject')
+    user_info = {'email_address': email_address}
+    create_zendesk_ticket(description, user_info,
+                          subject=subject,
+                          requester=User(
+                              email=email_address,
+                              verified=True
+                          ))
+    return response.json({'success': 'Ticket submitted'})
 
 
 @app.route('/users/<user_uid>/register_address', methods=['POST'])
