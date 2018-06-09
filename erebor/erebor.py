@@ -208,6 +208,7 @@ USER_ID_SQL = """
 SELECT id, uid::text
 FROM users
 WHERE session_id = $1
+AND ($2 is False OR active = $2)
 """.strip()
 
 LOGOUT_SQL = """
@@ -316,14 +317,15 @@ RETURNING email_address, first_name, last_name
 """.strip()
 
 
-def authorized():
+def authorized(active_required=False):
     def decorator(f):
         @wraps(f)
         async def decorated_function(request, *args, **kwargs):
             db = app.pg
             cookie = request.cookies.get('session_id')
             if cookie:
-                user_ids = await db.fetchrow(USER_ID_SQL, cookie)
+                user_ids = await db.fetchrow(USER_ID_SQL, cookie,
+                                             active_required)
                 if user_ids is not None:
                     request['session'] = {'user_id': user_ids['id'],
                                           'user_uid': user_ids['uid']}
@@ -817,7 +819,7 @@ async def notify_contact_transaction(transaction, user_id, db):
 
 
 @app.route('/contacts/transaction/', methods=['POST'])
-@authorized()
+@authorized(active_required=True)
 async def contact_transaction(request):
     transaction = request.json
     if transaction.keys() != {'sender', 'amount',
