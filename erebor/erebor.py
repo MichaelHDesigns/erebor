@@ -906,7 +906,7 @@ async def json_rpc_bridge(request):
 
 
 @app.route('/request_funds/', methods=['POST'])
-@authorized()
+@authorized(active_required=True)
 async def request_funds(request):
     fund_request = request.json
     if fund_request.keys() != {'recipient', 'email_address',
