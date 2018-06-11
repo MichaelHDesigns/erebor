@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     email_address TEXT UNIQUE,
     username TEXT UNIQUE,
     receive_emails_enabled BOOL DEFAULT True,
-    phone_number TEXT,
+    phone_number TEXT UNIQUE,
     uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
     session_id TEXT,
     external_id TEXT,
@@ -40,7 +40,7 @@ CREATE_CONTACT_TRANSACTIONS_SQL = """
 CREATE TABLE IF NOT EXISTS contact_transactions (
     id SERIAL PRIMARY KEY,
     uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
-    to_email_address TEXT,
+    recipient TEXT,
     user_id INTEGER REFERENCES users(id),
     currency e_currency,
     amount FLOAT,

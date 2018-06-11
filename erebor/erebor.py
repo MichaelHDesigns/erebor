@@ -31,7 +31,7 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            UNSUPPORTED_CURRENCY, INVALID_USERNAME,
                            NO_PUBLIC_KEY, INVALID_EMAIL, USER_NOT_FOUND,
                            USERNAME_EXISTS, EMAIL_ADDRESS_EXISTS,
-                           INVALID_TRANSACTION_UID)
+                           INVALID_TRANSACTION_UID, INVALID_PHONE_NUMBER)
 from erebor.email import Email
 from erebor.render import (unsubscribe_template, result_template,
                            password_template, RESULT_ACTIONS)
@@ -55,6 +55,7 @@ limiter = Limiter(app,
 
 email_pattern = re.compile('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$')
 username_pattern = re.compile('[^\w]')
+e164_pattern = re.compile('^\+?[1-9]\d{1,14}$')
 
 btc_usd_latest = None
 eth_usd_latest = None
@@ -247,22 +248,31 @@ WHERE scan_reference = $1
 """.strip()
 
 CREATE_CONTACT_TRANSACTION_SQL = """
-INSERT INTO contact_transactions (user_id, to_email_address,
+INSERT INTO contact_transactions (user_id, recipient,
                                   currency, amount, created)
 VALUES ($1, $2, $3, $4, now())
 """.strip()
 
 SELECT_CONTACT_TRANSACTIONS = """
-SELECT users.email_address, users.first_name, c_trans.to_email_address,
-       c_trans.currency, c_trans.amount,
-       date_trunc('minute', c_trans.created) created
-FROM contact_transactions as c_trans, users
-WHERE c_trans.user_id = users.id
-AND c_trans.to_email_address = $1
+SELECT users.email_address, users.first_name,
+       json_agg(
+            json_build_object(
+                'recipient', c.recipient,
+                'currency', c.currency,
+                'amount', c.amount,
+                'created', TO_CHAR(date_trunc(
+                    'minute', c.created), 'Mon dd, yyyy - hh12:miAM')))
+       as transactions
+FROM users
+LEFT JOIN contact_transactions c ON c.user_id = users.id
+WHERE c.user_id = users.id
+AND (c.recipient = $1
+     OR c.recipient = $2)
+GROUP BY users.id
 """.strip()
 
 SELECT_CONTACT_TRANSACTION_DATA = """
-SELECT to_email_address, currency, amount, created
+SELECT recipient, currency, amount, created
 FROM contact_transactions
 WHERE uid = $1
 """.strip()
@@ -286,7 +296,8 @@ FROM public_addresses, users
 WHERE public_addresses.user_id = users.id
 AND public_addresses.currency = $1
 AND (users.email_address = $2
-     OR users.username = $2)
+     OR users.username = $2
+     OR users.phone_number = $2)
 """.strip()
 
 SELECT_EMAIL_AND_FNAME_SQL = """
@@ -295,10 +306,11 @@ FROM users
 WHERE id = $1
 """.strip()
 
-SELECT_EMAIL_FROM_USERNAME_SQL = """
+SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL = """
 SELECT email_address
 FROM users
 WHERE username = $1
+OR phone_number = $1
 """.strip()
 
 SELECT_USERNAME_FNAME_FROM_EMAIL_SQL = """
@@ -351,7 +363,8 @@ async def users(request):
     db = app.pg
     first_name = request.json['first_name']
     last_name = request.json['last_name']
-    phone_number = request.json['phone_number']
+    phone_number = (request.json['phone_number'] if
+                    request.json['phone_number'] != '' else None)
     email_address = request.json['email_address']
     password = request.json['password']
     username = request.json['username']
@@ -360,6 +373,8 @@ async def users(request):
         return error_response([INVALID_USERNAME])
     if not email_pattern.match(email_address):
         return error_response([INVALID_EMAIL])
+    if phone_number and not e164_pattern.match(phone_number):
+        return error_response([INVALID_PHONE_NUMBER])
     try:
         new_user = await db.fetchrow(
             CREATE_USER_SQL, password, first_name,
@@ -393,7 +408,7 @@ async def users(request):
         activation_url=activation_url
     )
     signup_email.send()
-    await notify_contact_on_signup(email_address, db)
+    await notify_contact_on_signup(email_address, phone_number, db)
     resp = response.json(new_user, status=201)
     resp.cookies['session_id'] = session_id
     resp.cookies['session_id']['max-age'] = 86400
@@ -776,25 +791,26 @@ async def record_contact_transaction(transaction, user_id, db):
     return
 
 
-async def notify_contact_on_signup(to_email_address, db):
+async def notify_contact_on_signup(to_email_address, phone_number, db):
     """
     Notifies a user if their contact has now signed up to Hoard and displays
     all of the transactions they attempted to do in an email.
     """
     transactions = await db.fetch(SELECT_CONTACT_TRANSACTIONS,
-                                  to_email_address)
+                                  to_email_address, phone_number)
     if not transactions:
         return
-    from_email_address = transactions[0]['email_address']
-    first_name = transactions[0]['first_name']
-    notify_email = Email(
-        from_email_address,
-        'pending_contact_transactions',
-        first_name=first_name,
-        to_email_address=to_email_address,
-        transactions=transactions
-    )
-    notify_email.send()
+    for record in transactions:
+        from_email_address = record['email_address']
+        first_name = record['first_name']
+        notify_email = Email(
+            from_email_address,
+            'pending_contact_transactions',
+            first_name=first_name,
+            to_email_address=to_email_address,
+            transactions=json.loads(record['transactions'])
+        )
+        notify_email.send()
 
 
 async def notify_contact_transaction(transaction, user_id, db):
@@ -803,19 +819,33 @@ async def notify_contact_transaction(transaction, user_id, db):
     sent from a Hoard member.
     """
     user_info = await db.fetchrow(SELECT_EMAIL_AND_FNAME_SQL, user_id)
-    from_email_address = user_info['email_address']
-    from_first_name = user_info['first_name']
-    to_email_address = transaction['recipient']
-    notify_email = Email(
-        to_email_address,
-        'contact_transactions',
-        to_email_address=to_email_address,
-        from_email_address=from_email_address,
-        from_first_name=from_first_name,
-        amount=transaction['amount'],
-        currency=transaction['currency']
-    )
-    notify_email.send()
+    recipient = transaction['recipient']
+    if email_pattern.match(recipient):
+        from_email_address = user_info['email_address']
+        from_first_name = user_info['first_name']
+        to_email_address = transaction['recipient']
+        notify_email = Email(
+            to_email_address,
+            'contact_transactions',
+            to_email_address=to_email_address,
+            from_email_address=from_email_address,
+            from_first_name=from_first_name,
+            amount=transaction['amount'],
+            currency=transaction['currency']
+        )
+        notify_email.send()
+        return True
+    elif e164_pattern.match(recipient):
+        message = (
+            "Hello - your contact {}"
+            " ({}) at Hoard wishes to send you {} {}").format(
+                user_info['first_name'], user_info['email_address'],
+                transaction['amount'], transaction['currency']
+            )
+        # Send SMS to phone number
+        send_sms(recipient, message)
+        return True
+    return False
 
 
 @app.route('/contacts/transaction/', methods=['POST'])
@@ -846,21 +876,21 @@ async def contact_transaction(request):
         currency if not symbol else 'ETH',
         request['db']
     )
-    if (recipient_public_key is None and email_pattern.match(recipient)):
+    if recipient_public_key is None:
+        # Notify via email or SMS
+        notified = await notify_contact_transaction(
+            transaction, request['session']['user_id'], request['db'])
+        if not notified:
+            return error_response([NO_PUBLIC_KEY])
+
         # Record in DB
         await record_contact_transaction(transaction,
                                          request['session']['user_id'],
                                          request['db'])
-
-        # Notify via email
-        await notify_contact_transaction(transaction,
-                                         request['session']['user_id'],
-                                         request['db'])
-        return response.json({"success": ["Email sent notifying recipient"]})
-    elif recipient_public_key:
-        return response.json({'public_key': recipient_public_key[0]})
-    else:
-        return error_response([NO_PUBLIC_KEY])
+        return response.json(
+            {"success": ["Recipient has been notified of pending "
+                         "transaction"]})
+    return response.json({'public_key': recipient_public_key[0]})
 
 
 @app.route('/contacts/transaction_data/<transaction_uid>', methods=['GET'])
@@ -915,21 +945,21 @@ async def request_funds(request):
     currency = fund_request['currency']
     amount = fund_request['amount']
     from_email_address = fund_request['email_address']
-    to_email_address = fund_request['recipient']
+    recipient = fund_request['recipient']
     request_time = dt.now().strftime('%B %d, %Y - %I:%M%p')
-    if not email_pattern.match(to_email_address):
+    if not email_pattern.match(recipient):
         user_record = await request['db'].fetchrow(
-            SELECT_EMAIL_FROM_USERNAME_SQL, to_email_address)
+            SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL, recipient)
         if user_record is None:
             return error_response([USER_NOT_FOUND])
-        to_email_address = user_record['email_address']
+        recipient = user_record['email_address']
 
     # TODO: Include push notification here
 
     request_email = Email(
-        to_email_address,
+        recipient,
         'request_funds',
-        to_email_address=to_email_address,
+        to_email_address=recipient,
         from_email_address=from_email_address,
         amount=amount,
         currency=currency,

@@ -71,6 +71,7 @@ class TestResources(TestErebor):
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test2@example.com'
         other_test_user_data['username'] = 'c00l_n3w_us3r'
+        other_test_user_data['phone_number'] = '+11234567890'
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         o_data = response.json
@@ -83,6 +84,7 @@ class TestResources(TestErebor):
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test3@example.com'
         other_test_user_data['username'] = 'c00l_n3w_us3r'
+        other_test_user_data['phone_number'] = '+19998887777'
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
@@ -90,10 +92,23 @@ class TestResources(TestErebor):
                           [{'code': 112,
                             'message': 'Username already exists'}]}
 
-        # B: Username cannot have special characters
+        # B: Users can have one account per phone number
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['email_address'] = 'test3@example.com'
+        other_test_user_data['username'] = 'phone_number_user'
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        e_data = response.json
+        assert e_data == {'errors':
+                          [{'code': 107,
+                            'message': 'Error creating user'}]}
+
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test4@example.com'
         other_test_user_data['username'] = 'new_user_@@!'
+        other_test_user_data['phone_number'] = '+12223334444'
+
+        # B: Username cannot have special characters
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
@@ -104,6 +119,8 @@ class TestResources(TestErebor):
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'test4@example.com'
         other_test_user_data['username'] = 'new_user_of_length_greater_than_18'
+        other_test_user_data['phone_number'] = '+13334445555'
+
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
@@ -114,11 +131,29 @@ class TestResources(TestErebor):
         other_test_user_data = test_user_data.copy()
         other_test_user_data['email_address'] = 'not_an_email@@test.org'
         other_test_user_data['username'] = 'new_user_name'
+        other_test_user_data['phone_number'] = '+14445556666'
+
+        # Email must be a valid email
         request, response = app.test_client.post(
             '/users', data=json.dumps(other_test_user_data))
         e_data = response.json
         assert e_data == {'errors': [{'code': 110,
                                       'message': 'Invalid email address'}]}
+
+        # B: Multiple NULL phone numbers allowed
+        other_test_user_data['email_address'] = 'an_email@test.com'
+        other_test_user_data['phone_number'] = ''
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        assert response.status == 201
+
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['email_address'] = 'another_one@example.com'
+        other_test_user_data['username'] = 'userNAME'
+        other_test_user_data['phone_number'] = ''
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        assert response.status == 201
 
     def test_account_creation_error(self):
         u_data, session_id = new_user(app)
@@ -977,60 +1012,100 @@ class TestResources(TestErebor):
                 '{"jsonrpc": "2.0", "id": 1,'
                 '"result": "0x37942530c308b7e7",'
                 '"final_balance": 556484529}')))
+        flexmock(erebor).should_receive('send_sms').and_return()
         u_data, session_id = new_user(app)
 
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['first_name'] = 'Other'
+        other_test_user_data['email_address'] = 'test2@example.com'
+        other_test_user_data['username'] = 'c00l_n3w_us3r'
+        other_test_user_data['phone_number'] = '+11234567890'
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        other_session_id = response.cookies['session_id'].value
+
         SELECT_CONTACT_TRANSACTIONS = """
-        SELECT users.email_address, users.first_name, c_trans.to_email_address,
+        SELECT users.email_address, users.first_name, c_trans.recipient,
                c_trans.currency, c_trans.amount,
                date_trunc('minute', c_trans.created) created
         FROM contact_transactions as c_trans, users
         WHERE c_trans.user_id = users.id
-        AND c_trans.to_email_address = %s
+        AND (c_trans.recipient = %s
+             OR c_trans.recipient = %s)
         """.strip()
 
-        # B: User makes three contact transactions to contacts that are not
+        # B: User makes four contact transactions to contacts that are not
         # currently signed up with Hoard
+        # ---------------------------------------------------------------------
+        # Transaction 1
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
                              'recipient': 'first_test@example.com',
                              'amount': 1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
 
+        # Transaction 2
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
                              'recipient': 'first_test@example.com',
                              'amount': 4.2, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
 
+        # Transcation 3
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
                              'recipient': 'random_email@example.com',
                              'amount': 3.14, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
+
+        # B: User makes a contact transaction to a phone number
+        # Transaction 4
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': '+1234567890',
+                             'amount': 0.012345, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
         # ---------------------------------------------------------------------
+
+        # B: Another user makes a contact transaction to the same phone number
+        # above
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': '+1234567890',
+                             'amount': 0.012345, 'currency': 'BTC'}),
+            cookies={'session_id': other_session_id})
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
 
         # Retrive pending transactions for user first_test@example.com
         # and verify there is a total of two
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_CONTACT_TRANSACTIONS,
-                            ('first_test@example.com',))
+                            ('first_test@example.com', ''))
                 pending_transactions = cur.fetchall()
         assert pending_transactions == [
             {'email_address': 'test@example.com',
              'first_name': 'Testy',
-             'to_email_address': 'first_test@example.com',
+             'recipient': 'first_test@example.com',
              'currency': 'BTC', 'amount': 4.2,
              'created': datetime.now().replace(microsecond=0, second=0)},
             {'email_address': 'test@example.com',
              'first_name': 'Testy',
-             'to_email_address': 'first_test@example.com',
+             'recipient': 'first_test@example.com',
              'currency': 'ETH', 'amount': 1.0,
              'created': datetime.now().replace(microsecond=0, second=0)}]
 
@@ -1039,22 +1114,41 @@ class TestResources(TestErebor):
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(SELECT_CONTACT_TRANSACTIONS,
-                            ('random_email@example.com',))
+                            ('random_email@example.com', ''))
                 pending_transactions = cur.fetchall()
         assert pending_transactions == [
             {'email_address': 'test@example.com',
              'first_name': 'Testy',
-             'to_email_address': 'random_email@example.com',
+             'recipient': 'random_email@example.com',
              'currency': 'BTC', 'amount': 3.14,
              'created': datetime.now().replace(microsecond=0, second=0)}]
 
-        # B: User with two pending contact transactions signs up to Hoard and
-        # the sender receives an email indicating their contact is now a user
+        # Pending transaction to the phone number from above is a total of two
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_CONTACT_TRANSACTIONS,
+                            ('', '+1234567890'))
+                pending_transactions = cur.fetchall()
+        assert pending_transactions == [
+            {'email_address': 'test@example.com',
+             'first_name': 'Testy',
+             'recipient': '+1234567890',
+             'currency': 'BTC', 'amount': 0.012345,
+             'created': datetime.now().replace(microsecond=0, second=0)},
+            {'email_address': 'test2@example.com',
+             'first_name': 'Other',
+             'recipient': '+1234567890',
+             'currency': 'BTC', 'amount': 0.012345,
+             'created': datetime.now().replace(microsecond=0, second=0)}]
+
+        # B: User with pending contact transactions signs up to Hoard and
+        # the senders receive an email indicating their contact is now a user
         new_user_data = {'first_name': 'First',
                          'last_name': 'McFirstyson',
                          'email_address': 'first_test@example.com',
+                         'username': 'testing_user',
                          'password': 't3st_password',
-                         'phone_number': '19105552323'}
+                         'phone_number': '+1234567890'}
         request, response = app.test_client.post(
             '/users', data=json.dumps(new_user_data))
 
@@ -1066,6 +1160,7 @@ class TestResources(TestErebor):
                 '{"jsonrpc": "2.0", "id": 1,'
                 '"result": "0x37942530c308b7e7",'
                 '"final_balance": 556484529}')))
+        flexmock(erebor).should_receive('send_sms').and_return()
 
         # B: User sees missing fields error response
         request, response = app.test_client.post(
@@ -1132,7 +1227,19 @@ class TestResources(TestErebor):
                              'recipient': 'test_send@example.com',
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
+
+        # B: User transacts with their contact who has no Hoard account
+        # via phone number
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': '+1234567890',
+                             'amount': 2, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
 
         # B: User transacts with their contact who has a Hoard account
         # via username but the recipient has no public key registered
@@ -1218,7 +1325,8 @@ class TestResources(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
 
         # Retrieve the contact transaction from the DB to get its UID that
         # would normally be in the push notification
@@ -1261,7 +1369,8 @@ class TestResources(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
 
         # Retrieve the contact transaction UID
         with psycopg2.connect(**app.db) as conn:
@@ -1294,7 +1403,8 @@ class TestResources(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 2, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+        assert response.json == {
+            "success": ["Recipient has been notified of pending transaction"]}
 
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -1349,6 +1459,7 @@ class TestResources(TestErebor):
         other_new_user = test_user_data.copy()
         other_new_user['email_address'] = 'recipient@test.com'
         other_new_user['username'] = 'other_test_user'
+        other_new_user['phone_number'] = '+12223334444'
 
         request, response = app.test_client.post(
             '/users/', data=json.dumps(other_new_user))
@@ -1360,6 +1471,16 @@ class TestResources(TestErebor):
             cookies={'session_id': session_id},
             data=json.dumps(
                 {'recipient': 'other_test_user',
+                 'email_address': test_user_data['email_address'],
+                 'currency': 'BTC', 'amount': '9001'}))
+        assert response.json == {"success": ["Email sent notifying recipient"]}
+
+        # B: User posts request using recipient's phone number
+        request, response = app.test_client.post(
+            '/request_funds/',
+            cookies={'session_id': session_id},
+            data=json.dumps(
+                {'recipient': '+12223334444',
                  'email_address': test_user_data['email_address'],
                  'currency': 'BTC', 'amount': '9001'}))
         assert response.json == {"success": ["Email sent notifying recipient"]}

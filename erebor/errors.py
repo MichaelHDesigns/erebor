@@ -40,6 +40,10 @@ EMAIL_ADDRESS_EXISTS = {'code': 113, 'message': 'Email address already exists',
                         'status': 403}
 INVALID_TRANSACTION_UID = {'code': 114, 'message': 'Invalid transaction UID',
                            'status': 400}
+PHONE_NUMBER_EXISTS = {'code': 115, 'message': 'Phone number already exists',
+                       'status': 403}
+INVALID_PHONE_NUMBER = {'code': 116, 'message': 'Invalid phone number',
+                        'status': 400}
 RATE_LIMIT_EXCEEDED = {'code': 429, 'message': 'Too many requests.',
                        'status': 429}
 
