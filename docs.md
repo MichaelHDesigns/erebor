@@ -119,7 +119,7 @@ GET:
 #### /request_funds/
 
 POST:
-  - recipient (can be a valid email address or username)
+  - recipient (can be a valid email address, username, or or E164 format phone number)
   - email_address (the email address of the sender)
   - currency
   - amount
@@ -149,7 +149,7 @@ POST:
 
 POST:
   - sender (the public address of the sender)
-  - recipient (can be a valid email address or username)
+  - recipient (can be a valid email address, username, or E164 format phone number)
   - currency
   - amount
 
@@ -238,6 +238,18 @@ GET:
             '1.1.1': 'normal',
             '1.2.0': 'normal',
             '2.0.0': 'normal'}
+
+### Support
+
+#### /support/
+
+POST:
+  - email_address
+  - name
+  - description
+  - subject (optional)
+
+  Response: {"success": ["Ticket submitted"]}
 
 ### JSON RPC Bitcoind Bridge
 
