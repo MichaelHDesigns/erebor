@@ -939,6 +939,7 @@ class TestResources(TestErebor):
             data=json.dumps({'currency': 'BTC', 'address': '0xTESTBEEF'}),
             cookies={'session_id': session_id})
         assert response.status == 200
+        assert response.json == {'success': ['Address registered']}
 
         # Retrieve user's BTC address to verify it has been set
         with psycopg2.connect(**app.db) as conn:
@@ -966,6 +967,7 @@ class TestResources(TestErebor):
             data=json.dumps({'currency': 'ETH', 'address': '0xNEWETHADDRESS'}),
             cookies={'session_id': session_id})
         assert response.status == 200
+        assert response.json == {'success': ['Address registered']}
 
         # Retrieve user's ETH address to verify it has been changed
         with psycopg2.connect(**app.db) as conn:
@@ -983,6 +985,7 @@ class TestResources(TestErebor):
             data=json.dumps({'currency': 'BTC', 'address': '0xNEWBTCADDRESS'}),
             cookies={'session_id': session_id})
         assert response.status == 200
+        assert response.json == {'success': ['Address registered']}
 
         # Retrieve user's BTC address to verify it has been changed
         with psycopg2.connect(**app.db) as conn:

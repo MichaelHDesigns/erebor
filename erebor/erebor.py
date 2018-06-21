@@ -773,7 +773,7 @@ async def register_public_keys(request, user_uid):
     user_id = request['session']['user_id']
     await request['db'].execute(REGISTER_ADDRESS_SQL,
                                 user_id, currency, address)
-    return response.HTTPResponse(body=None, status=200)
+    return response.json({'success': ['Address registered']})
 
 
 async def public_key_for_user(recipient, currency, db):

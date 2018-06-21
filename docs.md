@@ -143,7 +143,7 @@ POST:
   - currency
   - address
 
-  Response: 200 OK
+  Response: {'success': ['Address registered']}
 
 #### /contacts/transaction/
 
