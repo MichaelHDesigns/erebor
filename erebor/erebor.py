@@ -21,6 +21,8 @@ from zenpy import Zenpy
 from zenpy.lib.api_objects import Ticket, User
 import boto3
 from botocore.exceptions import ClientError
+from aiocache import cached
+import aiohttp
 
 from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
@@ -63,6 +65,12 @@ ticker_last_update = None
 
 android_updates = {}
 ios_updates = {}
+
+
+async def fetch(url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            return await response.json()
 
 
 def refresh_ticker():
@@ -683,6 +691,29 @@ async def get_ticker(request):
                               'eth_usd': eth_usd_latest})
     else:
         return error_response([TICKER_UNAVAILABLE])
+
+
+@cached(ttl=10)
+async def current_prices(method, params):
+    url = ("https://min-api.cryptocompare.com/data/"
+           "{}?{}".format(method, "".join(
+            item + "=" + params[item][0] + "&" for item in params)))
+    return await fetch(url)
+
+
+@cached(ttl=610)
+async def historical_prices(method, params):
+    url = ("https://min-api.cryptocompare.com/data/"
+           "{}?{}".format(method, "".join(
+            item + "=" + params[item][0] + "&" for item in params)))
+    return await fetch(url)
+
+
+@app.route('/pricing_data/<method>', methods=['GET'])
+async def pricing_data(request, method):
+    if 'hist' in method:
+        return response.json(await historical_prices(method, request.args))
+    return response.json(await current_prices(method, request.args))
 
 
 @app.route('/jumio_callback', methods=['POST'])
