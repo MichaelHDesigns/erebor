@@ -8,6 +8,7 @@ from decimal import Decimal
 
 INFURA_API_KEY = os.environ.get("INFURA_API_KEY")
 ETH_NETWORK = os.environ.get("ETH_NETWORK")
+BTC_NETWORK = os.environ.get("BTC_NETWORK")
 symbol_pattern = re.compile("[0-9a-zA-Z!@#$%^&*()-]{2,10}")
 address_pattern = re.compile("^0x[a-fA-F0-9]{40}$")
 
@@ -48,8 +49,8 @@ def get_balance(address, currency):
         return Decimal(float.fromhex(balance)/(10e+17))
     elif currency == 'BTC':
         balance_req = requests.get(
-            "https://blockchain.info/rawaddr/{}"
-            "?limit=0".format(address))
+            "https://{}blockchain.info/rawaddr/{}"
+            "?limit=0".format(BTC_NETWORK, address))
         try:
             balance = balance_req.json().get('final_balance')
         except json.decoder.JSONDecodeError:
