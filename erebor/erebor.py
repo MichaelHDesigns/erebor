@@ -15,6 +15,7 @@ from sanic import Sanic, response
 from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
 from sanic_limiter import Limiter, get_remote_address, RateLimitExceeded
+from sanic_openapi import swagger_blueprint, openapi_blueprint
 from twilio.rest import Client
 import requests
 from zenpy import Zenpy
@@ -1079,6 +1080,8 @@ if __name__ == '__main__':
                       host=secret['host'],
                       port=secret['port'])
         app.blueprint(bp)
+    app.blueprint(openapi_blueprint)
+    app.blueprint(swagger_blueprint)
     app.run(host='0.0.0.0',
             port=8000,
             access_log=False if os.environ.get('EREBOR_ENV') == 'PROD'
