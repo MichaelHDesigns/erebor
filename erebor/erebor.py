@@ -426,6 +426,7 @@ async def users(request):
 
 
 @app.route('/users/<user_uid>', methods=['GET', 'PUT'])
+@limiter.shared_limit('50 per minute', scope='users/user_uid')
 @authorized()
 async def user(request, user_uid):
     if request.method == 'GET':
@@ -453,6 +454,7 @@ async def user(request, user_uid):
 
 
 @app.route('/activate/<activation_key>', methods=['GET'])
+@limiter.shared_limit('50 per minute', scope='activate/activation_key')
 async def activate_account(request, activation_key):
     if len(activation_key) != 36:
         return error_response([EXPIRED_TOKEN])
@@ -622,6 +624,7 @@ async def password(request):
 
 
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
+@limiter.shared_limit('50 per minute', scope='reset_password/token')
 async def reset_password(request, token):
     if len(token) != 36:
         return error_response([EXPIRED_TOKEN])
@@ -710,6 +713,7 @@ async def historical_prices(method, params):
 
 
 @app.route('/pricing_data/<method>', methods=['GET'])
+@limiter.shared_limit('50 per minute', scope='pricing_data/method')
 async def pricing_data(request, method):
     if 'hist' in method:
         return response.json(await historical_prices(method, request.args))
@@ -729,6 +733,7 @@ async def jumio_callback(request):
 
 
 @app.route('/jumio_results/<scan_reference>', methods=['GET'])
+@limiter.shared_limit('50 per minute', scope='jumio_results/scan_reference')
 @authorized()
 async def get_jumio_results(request, scan_reference):
     results = await request['db'].fetch(IV_RESULTS_SQL, scan_reference)
@@ -762,6 +767,7 @@ async def ca_search(request):
 
 
 @app.route('/ca_search/<search_id>', methods=['GET'])
+@limiter.shared_limit('50 per minute', scope='ca_search/search_id')
 @authorized()
 async def ca_search_id(request, search_id):
     url = "https://api.complyadvantage.com/searches/{}?api_key={}".format(
@@ -791,6 +797,7 @@ async def zen_support(request):
 
 
 @app.route('/users/<user_uid>/register_address', methods=['POST'])
+@limiter.shared_limit('50 per minute', scope='users/user_uid/register_address')
 @authorized()
 async def register_public_keys(request, user_uid):
     if user_uid != request['session']['user_uid']:
@@ -925,6 +932,9 @@ async def contact_transaction(request):
 
 
 @app.route('/contacts/transaction_data/<transaction_uid>', methods=['GET'])
+@limiter.shared_limit(
+    '50 per minute',
+    scope='/contacts/transaction_data/transaction_uid')
 @authorized()
 async def contact_transaction_data(request, transaction_uid):
     try:
@@ -938,6 +948,9 @@ async def contact_transaction_data(request, transaction_uid):
 
 @app.route('/contacts/transaction_confirmation/<transaction_uid>',
            methods=['POST'])
+@limiter.shared_limit(
+    '50 per minute',
+    scope='/contacts/transaction_confirmation/transaction_uid')
 @authorized()
 async def contact_transaction_confirmation(request, transaction_uid):
     confirmation = request.json
@@ -1025,6 +1038,7 @@ async def result(request):
 
 
 @app.route('/updates/<platform>', methods=['GET'])
+@limiter.shared_limit('50 per minute', scope='updates/platform')
 async def updates(request, platform):
     if platform == 'ios':
         return response.json(ios_updates)
