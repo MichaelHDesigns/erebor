@@ -15,7 +15,7 @@ from sanic import Sanic, response
 from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
 from sanic_limiter import Limiter, get_remote_address, RateLimitExceeded
-from sanic_openapi import swagger_blueprint, openapi_blueprint
+from sanic_attrs import swagger_blueprint, openapi_blueprint
 from twilio.rest import Client
 import requests
 from zenpy import Zenpy
