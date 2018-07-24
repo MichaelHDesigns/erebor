@@ -65,6 +65,7 @@ setup(
         "setuptools-scm==1.17.0",
         "six==1.10.0",
         "testing.postgresql==1.3.0",
+        "typing==3.6.4"
         "twilio==6.6.3",
         "urllib3==1.22",
         "zenpy==1.2.6",
