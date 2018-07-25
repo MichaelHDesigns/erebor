@@ -3,7 +3,7 @@ from asyncpg import create_pool
 from asyncpg import exceptions
 from sanic import Blueprint
 
-bp = Blueprint('dp')
+db_bp = Blueprint('db')
 
 
 async def _pg_fetch(pg_pool, sql, *args, **kwargs):
@@ -33,7 +33,7 @@ class PG:
         self.close = partial(_pg_close, pg_pool)
 
 
-@bp.listener('before_server_start')
+@db_bp.listener('before_server_start')
 async def init_pg(app, loop):
     try:
         app.pg_pool = await create_pool(
@@ -48,6 +48,6 @@ async def init_pg(app, loop):
         print("Error: " + e)
 
 
-@bp.listener('after_server_stop')
+@db_bp.listener('after_server_stop')
 async def close_pg(app, loop):
     await app.pg.close()

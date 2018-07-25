@@ -21,7 +21,8 @@ setup(
     author_email="dan@hoardinvest.com",
 
     # Packages
-    packages=["erebor", "erebor.templates", "erebor.templates.emails"],
+    packages=["erebor", "erebor.templates", "erebor.templates.emails",
+              "erebor.api"],
 
     # Include additional files into the package
     include_package_data=True,

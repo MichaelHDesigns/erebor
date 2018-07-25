@@ -4,7 +4,7 @@ from decimal import Decimal
 import requests
 import flexmock
 
-from erebor.erebor import get_balance
+from erebor.blockchain import get_balance
 
 
 class TestUnitTests(object):
