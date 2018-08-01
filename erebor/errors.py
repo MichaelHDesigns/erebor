@@ -55,3 +55,5 @@ UNSUPPORTED_CURRENCY = {'code': 202, 'message': 'Unsupported Currency',
                         'status': 403}
 NO_PUBLIC_KEY = {'code': 203, 'message': 'No public key found for user',
                  'status': 403}
+INVALID_SWAP_SERVICE = {'code': 204, 'message': 'Unsupported swap service',
+                        'status': 403}

@@ -7,7 +7,6 @@ from . import app, TestErebor, new_user
 
 
 class TestResources(TestErebor):
-
     def test_health(self):
         request, response = app.test_client.head('/health')
         assert response.status == 200

@@ -10,7 +10,8 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,  # noqa
                            UNSUPPORTED_CURRENCY, INVALID_USERNAME,
                            NO_PUBLIC_KEY, INVALID_EMAIL, USER_NOT_FOUND,
                            USERNAME_EXISTS, EMAIL_ADDRESS_EXISTS,
-                           INVALID_TRANSACTION_UID, INVALID_PHONE_NUMBER)
+                           INVALID_TRANSACTION_UID, INVALID_PHONE_NUMBER,
+                           INVALID_SWAP_SERVICE)
 from erebor.email import Email  # noqa
 from erebor.render import (unsubscribe_template, result_template, # noqa
                            password_template, RESULT_ACTIONS)

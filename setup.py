@@ -22,7 +22,7 @@ setup(
 
     # Packages
     packages=["erebor", "erebor.templates", "erebor.templates.emails",
-              "erebor.api"],
+              "erebor.api", "erebor.blockchain", "erebor.blockchain.swaps"],
 
     # Include additional files into the package
     include_package_data=True,

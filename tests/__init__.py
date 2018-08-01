@@ -13,6 +13,7 @@ from erebor.api.misc import misc_bp  # noqa
 from erebor.api.prices import prices_bp  # noqa
 from erebor.api.verification import verification_bp  # noqa
 from erebor.db import db_bp  # noqa
+from erebor.api.swaps.swap import swap_bp  # noqa
 from erebor.email import boto3, AWS_REGION  # noqa
 from erebor.erebor import app  # noqa
 
@@ -21,6 +22,7 @@ from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
                         CREATE_CONTACT_TRANSACTIONS_SQL,
                         CREATE_CURRENCY_ENUM_SQL,
                         CREATE_ADDRESSES_TABLE_SQL)  # noqa
+
 app.blueprint(db_bp)
 app.blueprint(users_bp)
 app.blueprint(transactions_bp)
@@ -28,7 +30,7 @@ app.blueprint(support_bp)
 app.blueprint(misc_bp)
 app.blueprint(prices_bp)
 app.blueprint(verification_bp)
-
+app.blueprint(swap_bp)
 
 test_user_data = {'first_name': 'Testy',
                   'last_name': 'McTestface',
