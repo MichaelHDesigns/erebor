@@ -1,5 +1,4 @@
 import os
-import json
 
 import aiohttp
 from zenpy import Zenpy
@@ -42,5 +41,4 @@ def create_zendesk_ticket(description,
         Ticket(subject=subject,
                recipient=recipient,
                requester=requester,
-               description=json.dumps({"user_info": user_info,
-                                       "data": description})))
+               description=description))
