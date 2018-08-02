@@ -31,6 +31,8 @@ app.blueprint(misc_bp)
 app.blueprint(prices_bp)
 app.blueprint(verification_bp)
 app.blueprint(swap_bp)
+app.config.ZD_CREDENTIALS = "testing"
+app.config.TWILIO_CREDENTIALS = "testing"
 
 test_user_data = {'first_name': 'Testy',
                   'last_name': 'McTestface',

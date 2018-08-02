@@ -1,6 +1,7 @@
 from functools import wraps
 import json
 import os
+import logging
 
 import requests
 import boto3
@@ -104,8 +105,17 @@ def load_env(app):
         'auth_token': os.environ.get('TWILIO_AUTH_TOKEN'),
         'twilio_number': os.environ.get('TWILIO_NUMBER')
     }
-    app.config.ZD_CREDENTIALS = zd_credentials
-    app.config.TWILIO_CREDENTIALS = twilio_credentials
+    logging.info("Loading Zendesk credentials...")
+    app.config.ZD_CREDENTIALS = (zd_credentials if all(zd_credentials.items())
+                                 else None)
+    logging.info("Zendesk credentials: {}".format(
+        'LOADED' if app.config.ZD_CREDENTIALS else 'ERROR'))
+
+    logging.info("Loading Twilio credentials...")
+    app.config.TWILIO_CREDENTIALS = (twilio_credentials if
+                                     all(twilio_credentials.items()) else None)
+    logging.info("Twilio credentials: {}".format(
+        'LOADED' if app.config.TWILIO_CREDENTIALS else 'ERROR'))
 
 
 if __name__ == '__main__':
