@@ -1,5 +1,3 @@
-import os
-
 import aiohttp
 from zenpy import Zenpy
 from zenpy.lib.api_objects import Ticket
@@ -18,10 +16,10 @@ async def post(url, json):
             return await response.json()
 
 
-def send_sms(to_number, body):
-    account_sid = os.environ['TWILIO_ACCOUNT_SID']
-    auth_token = os.environ['TWILIO_AUTH_TOKEN']
-    twilio_number = os.environ['TWILIO_NUMBER']
+def send_sms(to_number, body, twilio_credentials):
+    account_sid = twilio_credentials['account_sid']
+    auth_token = twilio_credentials['auth_token']
+    twilio_number = twilio_credentials['twilio_number']
     client = Client(account_sid, auth_token)
     client.api.messages.create(to_number,
                                from_=twilio_number,
@@ -30,12 +28,10 @@ def send_sms(to_number, body):
 
 def create_zendesk_ticket(description,
                           user_info,
+                          zd_credentials,
                           subject=None,
                           recipient=None,
                           requester=None):
-    zd_credentials = {'email': os.environ.get('ZD_EMAIL'),
-                      'token': os.environ.get('ZD_TOKEN'),
-                      'subdomain': os.environ.get('ZD_SUBDOMAIN')}
     zenpy_client = Zenpy(**zd_credentials)
     zenpy_client.tickets.create(
         Ticket(subject=subject,

@@ -35,7 +35,8 @@ async def record_contact_transaction(transaction, user_id, db):
     return
 
 
-async def notify_contact_transaction(transaction, user_id, db):
+async def notify_contact_transaction(transaction, user_id, db,
+                                     twilio_credentials):
     """
     Notifies a contact that does not have Hoard about a pending transaction
     sent from a Hoard member.
@@ -57,7 +58,7 @@ async def notify_contact_transaction(transaction, user_id, db):
         )
         notify_email.send()
         return True
-    elif e164_pattern.match(recipient):
+    elif e164_pattern.match(recipient) and twilio_credentials is not None:
         message = (
             "Hello - your contact {}"
             " ({}) at Hoard wishes to send you {} {}").format(
@@ -119,7 +120,8 @@ async def contact_transaction(request):
     if recipient_public_key is None:
         # Notify via email or SMS
         notified = await notify_contact_transaction(
-            transaction, request['session']['user_id'], request['db'])
+            transaction, request['session']['user_id'], request['db'],
+            request.app.config.TWILIO_CREDENTIALS)
         if not notified:
             return error_response([NO_PUBLIC_KEY])
 

@@ -93,6 +93,21 @@ def load_aws_secret(secret_name):
     return json.loads(secret)
 
 
+def load_env(app):
+    zd_credentials = {
+        'email': os.environ.get('ZD_EMAIL'),
+        'token': os.environ.get('ZD_TOKEN'),
+        'subdomain': os.environ.get('ZD_SUBDOMAIN')
+    }
+    twilio_credentials = {
+        'account_sid': os.environ.get('TWILIO_ACCOUNT_SID'),
+        'auth_token': os.environ.get('TWILIO_AUTH_TOKEN'),
+        'twilio_number': os.environ.get('TWILIO_NUMBER')
+    }
+    app.config.ZD_CREDENTIALS = zd_credentials
+    app.config.TWILIO_CREDENTIALS = twilio_credentials
+
+
 if __name__ == '__main__':
     secret_name = os.environ['EREBOR_DB_AWS_SECRET']
 
@@ -108,6 +123,7 @@ if __name__ == '__main__':
     else:
         raise Exception("Missing database credentials")
 
+    load_env(app)
     from erebor.api.users import users_bp
     from erebor.api.transactions import transactions_bp
     from erebor.api.support import support_bp
