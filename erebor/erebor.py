@@ -9,6 +9,7 @@ from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
 from sanic_limiter import Limiter, get_remote_address, RateLimitExceeded
 from botocore.exceptions import ClientError
+from sanic_prometheus import monitor
 
 from erebor.errors import (error_response, UNAUTHORIZED,
                            INVALID_API_KEY,
@@ -118,6 +119,7 @@ if __name__ == '__main__':
     app.blueprint(support_bp)
     app.blueprint(misc_bp)
     app.blueprint(prices_bp)
+    monitor(app).expose_endpoint()
     app.run(host='0.0.0.0',
             port=8000,
             access_log=False if os.environ.get('EREBOR_ENV') == 'PROD'
