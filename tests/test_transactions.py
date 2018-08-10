@@ -142,8 +142,7 @@ class TestTransactions(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # Transaction 2
         request, response = app.test_client.post(
@@ -152,8 +151,7 @@ class TestTransactions(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 4.2, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # Transcation 3
         request, response = app.test_client.post(
@@ -162,8 +160,7 @@ class TestTransactions(TestErebor):
                              'recipient': 'random_email@example.com',
                              'amount': 3.14, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # B: User makes a contact transaction to a phone number
         # Transaction 4
@@ -173,8 +170,7 @@ class TestTransactions(TestErebor):
                              'recipient': '+1234567890',
                              'amount': 0.012345, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
         # ---------------------------------------------------------------------
 
         # B: Another user makes a contact transaction to the same phone number
@@ -185,8 +181,7 @@ class TestTransactions(TestErebor):
                              'recipient': '+1234567890',
                              'amount': 0.012345, 'currency': 'BTC'}),
             cookies={'session_id': other_session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # Retrive pending transactions for user first_test@example.com
         # and verify there is a total of two
@@ -325,8 +320,7 @@ class TestTransactions(TestErebor):
                              'recipient': 'test_send@example.com',
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # B: User transacts with their contact who has no Hoard account
         # via phone number
@@ -336,8 +330,7 @@ class TestTransactions(TestErebor):
                              'recipient': '+1234567890',
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # B: User transacts with their contact who has a Hoard account
         # via username but the recipient has no public key registered
@@ -423,8 +416,7 @@ class TestTransactions(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # Retrieve the contact transaction from the DB to get its UID that
         # would normally be in the push notification
@@ -467,8 +459,7 @@ class TestTransactions(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 1, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # Retrieve the contact transaction UID
         with psycopg2.connect(**app.db) as conn:
@@ -501,8 +492,7 @@ class TestTransactions(TestErebor):
                              'recipient': 'first_test@example.com',
                              'amount': 2, 'currency': 'BTC'}),
             cookies={'session_id': session_id})
-        assert response.json == {
-            "success": ["Recipient has been notified of pending transaction"]}
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -538,8 +528,8 @@ class TestTransactions(TestErebor):
             data=json.dumps(
                 {'recipient': 'recipient@test.com',
                  'email_address': test_user_data['email_address'],
-                 'currency': 'BTC', 'amount': '9001'}))
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+                 'currency': 'BTC', 'amount': 9001}))
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # B: User attempts to request funds from someone who is not a Hoard
         # user using a username that does not exist
@@ -549,7 +539,7 @@ class TestTransactions(TestErebor):
             data=json.dumps(
                 {'recipient': 'test_recipient_user_name',
                  'email_address': test_user_data['email_address'],
-                 'currency': 'BTC', 'amount': '9001'}))
+                 'currency': 'BTC', 'amount': 9001}))
         e_data = response.json
         assert e_data == {'errors': [{
             'message': 'User not found for given username', 'code': 111}]}
@@ -570,8 +560,8 @@ class TestTransactions(TestErebor):
             data=json.dumps(
                 {'recipient': 'other_test_user',
                  'email_address': test_user_data['email_address'],
-                 'currency': 'BTC', 'amount': '9001'}))
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+                 'currency': 'BTC', 'amount': 9001}))
+        assert response.json.keys() == {'success', 'transaction_uid'}
 
         # B: User posts request using recipient's phone number
         request, response = app.test_client.post(
@@ -580,5 +570,5 @@ class TestTransactions(TestErebor):
             data=json.dumps(
                 {'recipient': '+12223334444',
                  'email_address': test_user_data['email_address'],
-                 'currency': 'BTC', 'amount': '9001'}))
-        assert response.json == {"success": ["Email sent notifying recipient"]}
+                 'currency': 'BTC', 'amount': 9001}))
+        assert response.json.keys() == {'success', 'transaction_uid'}

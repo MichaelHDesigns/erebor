@@ -140,6 +140,7 @@ CREATE_CONTACT_TRANSACTION_SQL = """
 INSERT INTO contact_transactions (user_id, recipient,
                                   currency, amount, created)
 VALUES ($1, $2, $3, $4, now())
+RETURNING uid::text
 """.strip()
 
 SELECT_CONTACT_TRANSACTIONS = """

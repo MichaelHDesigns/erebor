@@ -28,11 +28,11 @@ async def public_key_for_user(recipient, currency, db):
 
 async def record_contact_transaction(transaction, user_id, db):
     # Record transaction in database
-    await db.execute(
+    transaction_uid = await db.fetchrow(
         CREATE_CONTACT_TRANSACTION_SQL,
         user_id, transaction['recipient'],
         transaction['currency'], transaction['amount'])
-    return
+    return transaction_uid['uid']
 
 
 async def notify_contact_transaction(transaction, user_id, db):
@@ -124,12 +124,14 @@ async def contact_transaction(request):
             return error_response([NO_PUBLIC_KEY])
 
         # Record in DB
-        await record_contact_transaction(transaction,
-                                         request['session']['user_id'],
-                                         request['db'])
+        transaction_uid = await record_contact_transaction(
+            transaction,
+            request['session']['user_id'],
+            request['db'])
         return response.json(
             {"success": ["Recipient has been notified of pending "
-                         "transaction"]})
+                         "transaction"],
+             "transaction_uid": transaction_uid})
     return response.json({'public_key': recipient_public_key[0]})
 
 
@@ -202,4 +204,16 @@ async def request_funds(request):
         request_time=request_time
     )
     request_email.send()
-    return response.json({"success": ["Email sent notifying recipient"]})
+
+    transaction_uid = await record_contact_transaction(
+        {
+            "recipient": recipient,
+            "currency": currency,
+            "amount": amount
+        },
+        request['session']['user_id'],
+        request['db']
+    )
+
+    return response.json({"success": ["Email sent notifying recipient"],
+                          "transaction_uid": transaction_uid})
