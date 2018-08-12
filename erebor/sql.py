@@ -161,6 +161,12 @@ AND (c.recipient = $1
 GROUP BY users.id
 """.strip()
 
+SELECT_ALL_CONTACT_TRANSACTIONS = """
+SELECT uid::text, recipient, currency, amount, created, confirmed
+FROM contact_transactions
+WHERE user_id = $1
+"""
+
 SELECT_CONTACT_TRANSACTION_DATA = """
 SELECT recipient, currency, amount, created
 FROM contact_transactions

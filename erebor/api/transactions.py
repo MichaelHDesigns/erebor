@@ -15,7 +15,8 @@ from . import (REGISTER_ADDRESS_SQL, SELECT_ADDRESS_SQL,
                CREATE_CONTACT_TRANSACTION_SQL, SELECT_EMAIL_AND_FNAME_SQL,
                SELECT_CONTACT_TRANSACTION_DATA,
                UPDATE_TRANSACTION_CONFIRMATION_SQL,
-               SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL)
+               SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL,
+               SELECT_ALL_CONTACT_TRANSACTIONS)
 
 transactions_bp = Blueprint('transactions')
 
@@ -171,6 +172,21 @@ async def contact_transaction_confirmation(request, transaction_uid):
     return (response.json({'success': 'You have confirmed the transaction'}) if
             confirmation_value else
             response.json({'success': 'You have denied the transaction'}))
+
+
+@transactions_bp.route('/users/<user_uid>/contact_transactions',
+                       methods=['GET'])
+@limiter.shared_limit('50 per minute',
+                      scope='/users/user_uid/contact_transactions')
+@authorized()
+async def contact_transaction_by_user(request, user_uid):
+    if user_uid != request['session']['user_uid']:
+        return error_response([UNAUTHORIZED])
+    db = request['db']
+    transactions = await db.fetch(SELECT_ALL_CONTACT_TRANSACTIONS,
+                                  request['session']['user_id'])
+    transactions = [dict(record) for record in transactions]
+    return response.json(transactions)
 
 
 @transactions_bp.route('/request_funds/', methods=['POST'])

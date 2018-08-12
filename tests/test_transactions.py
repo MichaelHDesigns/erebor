@@ -443,6 +443,62 @@ class TestTransactions(TestErebor):
         assert response.json.keys() == {'errors'}
         assert response.status == 400
 
+    def test_all_transactions_data(self):
+        u_data, session_id = new_user(app)
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}')))
+        flexmock(api.transactions).should_receive('send_sms').and_return()
+
+        # B: User makes four contact transactions to contacts that are not
+        # currently signed up with Hoard
+        # ---------------------------------------------------------------------
+        # Transaction 1
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'first_test@example.com',
+                             'amount': 1, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # Transaction 2
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'first_test@example.com',
+                             'amount': 4.2, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # Transcation 3
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'random_email@example.com',
+                             'amount': 3.14, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # B: User makes a contact transaction to a phone number
+        # Transaction 4
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': '+1234567890',
+                             'amount': 0.012345, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # B: User makes request to view all transactions
+        request, response = app.test_client.get(
+            '/users/{}/contact_transactions'.format(u_data['uid']),
+            cookies={'session_id': session_id}
+        )
+        assert len(response.json) == 4
+
     def test_contact_transaction_confirmation(self):
         u_data, session_id = new_user(app)
 
