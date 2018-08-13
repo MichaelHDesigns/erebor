@@ -168,14 +168,14 @@ WHERE user_id = $1
 """
 
 SELECT_CONTACT_TRANSACTION_DATA = """
-SELECT recipient, currency, amount, created
+SELECT recipient, currency, amount, created, uid::text, status
 FROM contact_transactions
 WHERE uid = $1
 """.strip()
 
 UPDATE_TRANSACTION_CONFIRMATION_SQL = """
 UPDATE contact_transactions
-SET confirmed = $1
+SET status = $1
 WHERE uid = $2
 """.strip()
 

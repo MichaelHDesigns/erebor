@@ -523,9 +523,9 @@ class TestTransactions(TestErebor):
                 cur.execute('SELECT * FROM contact_transactions WHERE id = 1')
                 result = cur.fetchone()
         trans_uid = result['uid']
-        confirmed = result['confirmed']
+        status = result['status']
         # Transaction has not been confirmed or denied yet
-        assert confirmed is None
+        assert status == 'pending'
 
         # B: User confirms the transaction
         request, response = app.test_client.post(
@@ -538,8 +538,8 @@ class TestTransactions(TestErebor):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute('SELECT * FROM contact_transactions WHERE id = 1')
                 result = cur.fetchone()
-        confirmed = result['confirmed']
-        assert confirmed is True
+        status = result['status']
+        assert status == 'confirmed'
 
         # B: User transacts with their contact who has no Hoard account
         request, response = app.test_client.post(
@@ -555,9 +555,9 @@ class TestTransactions(TestErebor):
                 cur.execute('SELECT * FROM contact_transactions WHERE id = 2')
                 result = cur.fetchone()
         trans_uid = result['uid']
-        confirmed = result['confirmed']
+        status = result['status']
         # Transaction has not been confirmed or denied yet
-        assert confirmed is None
+        assert status == 'pending'
 
         # B: User denies the transaction
         request, response = app.test_client.post(
@@ -570,8 +570,8 @@ class TestTransactions(TestErebor):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute('SELECT * FROM contact_transactions WHERE id = 2')
                 result = cur.fetchone()
-        confirmed = result['confirmed']
-        assert confirmed is False
+        status = result['status']
+        assert status == 'denied'
 
     def test_request_funds(self):
         u_data, session_id = new_user(app)

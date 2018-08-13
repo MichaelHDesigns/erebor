@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS contact_transactions (
     currency e_currency,
     amount FLOAT,
     created TIMESTAMP(0),
-    confirmed BOOL DEFAULT NULL
+    status TEXT DEFAULT 'pending'
 );
 """.strip()
 
