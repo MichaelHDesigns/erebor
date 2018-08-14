@@ -160,15 +160,17 @@ async def contact_transaction_data(request, transaction_uid):
 @authorized()
 async def contact_transaction_confirmation(request, transaction_uid):
     confirmation = request.json
-    if confirmation.keys() != {'confirmed'}:
+    if confirmation.keys() != {'confirmed', 'transaction_hash'}:
         return error_response([MISSING_FIELDS])
     confirmation_value = confirmation['confirmed']
     if not isinstance(confirmation_value, bool):
         return error_response([MISSING_FIELDS])
+    transaction_hash = confirmation['transaction_hash']
     try:
         await request['db'].execute(
             UPDATE_TRANSACTION_CONFIRMATION_SQL,
-            'confirmed' if confirmation_value else 'denied', transaction_uid)
+            'confirmed' if confirmation_value else 'denied', transaction_hash,
+            transaction_uid)
     except ValueError:
         return error_response([INVALID_TRANSACTION_UID])
     return (response.json({'success': 'You have confirmed the transaction'}) if

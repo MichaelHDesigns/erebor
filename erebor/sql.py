@@ -162,21 +162,21 @@ GROUP BY users.id
 """.strip()
 
 SELECT_ALL_CONTACT_TRANSACTIONS = """
-SELECT uid::text, recipient, currency, amount, created, confirmed
+SELECT uid::text, recipient, currency, amount, created, status
 FROM contact_transactions
 WHERE user_id = $1
 """
 
 SELECT_CONTACT_TRANSACTION_DATA = """
-SELECT recipient, currency, amount, created, uid::text, status
+SELECT  uid::text, recipient, currency, amount, created, status
 FROM contact_transactions
 WHERE uid = $1
 """.strip()
 
 UPDATE_TRANSACTION_CONFIRMATION_SQL = """
 UPDATE contact_transactions
-SET status = $1
-WHERE uid = $2
+SET status = $1, transaction_hash = $2
+WHERE uid = $3
 """.strip()
 
 REGISTER_ADDRESS_SQL = """

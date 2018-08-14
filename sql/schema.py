@@ -40,6 +40,7 @@ CREATE_CONTACT_TRANSACTIONS_SQL = """
 CREATE TABLE IF NOT EXISTS contact_transactions (
     id SERIAL PRIMARY KEY,
     uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
+    transaction_hash TEXT DEFAULT NULL,
     recipient TEXT,
     user_id INTEGER REFERENCES users(id),
     currency e_currency,

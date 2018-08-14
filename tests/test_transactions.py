@@ -531,7 +531,7 @@ class TestTransactions(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction_confirmation/{}'.format(trans_uid),
             cookies={'session_id': session_id},
-            data=json.dumps({'confirmed': True})
+            data=json.dumps({'confirmed': True, 'transaction_hash': '0x0'})
         )
 
         with psycopg2.connect(**app.db) as conn:
@@ -563,7 +563,7 @@ class TestTransactions(TestErebor):
         request, response = app.test_client.post(
             '/contacts/transaction_confirmation/{}'.format(trans_uid),
             cookies={'session_id': session_id},
-            data=json.dumps({'confirmed': False})
+            data=json.dumps({'confirmed': False, 'transaction_hash': None})
         )
 
         with psycopg2.connect(**app.db) as conn:
