@@ -29,11 +29,11 @@ CREATE TABLE IF NOT EXISTS reset_tokens (
 CREATE TABLE IF NOT EXISTS contact_transactions (
     id SERIAL PRIMARY KEY,
     uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
+    transaction_hash TEXT DEFAULT NULL,
     recipient TEXT,
     user_id INTEGER REFERENCES users(id),
     currency e_currency,
     amount FLOAT,
     created TIMESTAMP(0),
-    confirmed BOOL DEFAULT NULL,
-    created TIMESTAMP(0)
+    status TEXT DEFAULT 'pending'
 );
