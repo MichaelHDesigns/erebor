@@ -319,7 +319,7 @@ async def reset_password(request, token):
             return response.html(password_template.render(token=token))
         elif request.method == 'POST':
             new_password = request.json['new_password']
-            user_id = data['id']
+            user_id = data['user_id']
             await db.execute(CHANGE_PASSWORD_SQL, new_password, user_id)
             await db.execute(EXPIRE_RESET_TOKEN_SQL, token)
             return response.json(

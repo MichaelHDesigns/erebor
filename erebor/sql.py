@@ -9,21 +9,19 @@ OR username = $2
 
 RESET_TOKEN_CREATION_SQL = """
 INSERT INTO reset_tokens
-    (id, reset_token, reset_token_creation_time,
-     email_address)
+    (user_id, reset_token, reset_token_creation_time)
 SELECT
-     users.id, uuid_generate_v4(), CURRENT_TIMESTAMP,
-     users.email_address
+     users.id, uuid_generate_v4(), CURRENT_TIMESTAMP
 FROM users
 WHERE email_address = $1
-ON CONFLICT (id) DO UPDATE
+ON CONFLICT (user_id) DO UPDATE
 SET reset_token = uuid_generate_v4(),
     reset_token_creation_time = CURRENT_TIMESTAMP
-RETURNING reset_token, email_address
+RETURNING reset_token
 """.strip()
 
 SELECT_RESET_TOKEN_SQL = """
-SELECT email_address, id
+SELECT user_id
 FROM reset_tokens
 WHERE reset_token = $1
 AND reset_token_creation_time + interval '1 hour' > $2

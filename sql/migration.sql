@@ -7,6 +7,8 @@ ALTER TABLE contact_transactions ADD COLUMN created TIMESTAMP(0);
 ALTER TABLE contact_transactions ADD COLUMN confirmed BOOL DEFAULT NULL;
 ALTER TABLE contact_transactions RENAME COLUMN to_email_address TO recipient;
 ALTER TABLE users ADD COLUMN register_date DATE;
+ALTER TABLE reset_tokens DROP COLUMN email_address;
+ALTER TABLE reset_tokens RENAME COLUMN id TO user_id;
 
 CREATE TYPE e_currency AS ENUM (
     'ETH',

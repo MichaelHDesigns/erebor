@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS identity_verifications (
 
 CREATE_RESET_TOKENS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS reset_tokens (
-    id INTEGER REFERENCES users(id) PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) PRIMARY KEY,
     reset_token UUID DEFAULT NULL UNIQUE,
     reset_token_creation_time TIMESTAMP,
     email_address TEXT REFERENCES users(email_address)

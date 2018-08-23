@@ -404,9 +404,9 @@ class TestUsers(TestErebor):
         # Grab the reset token generated for the user which would normally be
         # included as a link in their email
         SELECT_RESET_TOKEN_SQL = """
-        SELECT reset_token, id
+        SELECT reset_token, user_id
         FROM reset_tokens
-        WHERE email_address = %s
+        WHERE user_id = 1
         """.strip()
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor() as cur:
