@@ -6,6 +6,7 @@ ALTER TABLE users ADD UNIQUE phone_number;
 ALTER TABLE contact_transactions ADD COLUMN created TIMESTAMP(0);
 ALTER TABLE contact_transactions ADD COLUMN confirmed BOOL DEFAULT NULL;
 ALTER TABLE contact_transactions RENAME COLUMN to_email_address TO recipient;
+ALTER TABLE users ADD COLUMN register_date DATE;
 
 CREATE TYPE e_currency AS ENUM (
     'ETH',

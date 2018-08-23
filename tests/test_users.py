@@ -12,7 +12,7 @@ class TestUsers(TestErebor):
         assert u_data.keys() == {'uid', 'first_name', 'last_name',
                                  'email_address', 'username',
                                  'receive_emails_enabled', 'phone_number',
-                                 'sms_2fa_enabled', 'active'}
+                                 'sms_2fa_enabled', 'active', 'register_date'}
         for each_key in test_user_data.keys() - {'password'}:
             assert u_data[each_key] == test_user_data[each_key]
 
@@ -33,7 +33,7 @@ class TestUsers(TestErebor):
         assert o_data.keys() == {'uid', 'first_name', 'last_name',
                                  'email_address', 'username',
                                  'receive_emails_enabled', 'phone_number',
-                                 'sms_2fa_enabled', 'active'}
+                                 'sms_2fa_enabled', 'active', 'register_date'}
 
         # B: Users can have one account per username
         other_test_user_data = test_user_data.copy()

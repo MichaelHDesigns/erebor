@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     sms_verification TEXT DEFAULT Null,
     sms_2fa_enabled BOOL DEFAULT False,
     active BOOL DEFAULT False,
-    activation_key UUID DEFAULT uuid_generate_v4 () UNIQUE
+    activation_key UUID DEFAULT uuid_generate_v4 () UNIQUE,
+    register_date DATE
 );
 """.strip()
 

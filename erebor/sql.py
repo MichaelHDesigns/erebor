@@ -77,8 +77,8 @@ WITH x AS (
     gen_salt('bf')::text AS salt
 )
 INSERT INTO users (password, salt, first_name, last_name, email_address,
-                   username, phone_number, session_id)
-SELECT crypt(x.password, x.salt), x.salt, $2, $3, $4, $5, $6, $7
+                   username, phone_number, session_id, register_date)
+SELECT crypt(x.password, x.salt), x.salt, $2, $3, $4, $5, $6, $7, now()
 FROM x
 RETURNING *
 """.strip()
