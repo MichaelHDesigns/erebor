@@ -5,6 +5,7 @@ import os
 import requests
 import boto3
 from sanic import Sanic, response
+from sanic.exceptions import NotFound
 from sanic.log import LOGGING_CONFIG_DEFAULTS
 from sanic_cors import CORS
 from sanic_limiter import Limiter, get_remote_address, RateLimitExceeded
@@ -13,7 +14,7 @@ from sanic_prometheus import monitor
 
 from erebor.errors import (error_response, UNAUTHORIZED,
                            INVALID_API_KEY,
-                           RATE_LIMIT_EXCEEDED)
+                           RATE_LIMIT_EXCEEDED, ROUTE_NOT_FOUND)
 from erebor.logs import logging_config
 from erebor.sql import USER_ID_SQL
 
@@ -51,6 +52,11 @@ def authorized():
 @app.exception(RateLimitExceeded)
 def handle_429(request, exception):
     return error_response([RATE_LIMIT_EXCEEDED])
+
+
+@app.exception(NotFound)
+def handle_404(request, exception):
+    return error_response([ROUTE_NOT_FOUND])
 
 
 # REMOVE
