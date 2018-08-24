@@ -21,7 +21,8 @@ from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
                         CREATE_RESET_TOKENS_TABLE_SQL,
                         CREATE_CONTACT_TRANSACTIONS_SQL,
                         CREATE_CURRENCY_ENUM_SQL,
-                        CREATE_ADDRESSES_TABLE_SQL)  # noqa
+                        CREATE_ADDRESSES_TABLE_SQL,
+                        CREATE_PRICES_TABLE_SQL)  # noqa
 
 app.blueprint(db_bp)
 app.blueprint(users_bp)
@@ -65,6 +66,7 @@ class TestErebor(object):
                 cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
                 cur.execute(CREATE_CONTACT_TRANSACTIONS_SQL)
                 cur.execute(CREATE_ADDRESSES_TABLE_SQL)
+                cur.execute(CREATE_PRICES_TABLE_SQL)
 
         # mock SES
         boto_response = {'ResponseMetadata': {'RequestId': '12345'}}

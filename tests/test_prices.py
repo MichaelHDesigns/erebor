@@ -1,4 +1,6 @@
 import flexmock
+import psycopg2
+import json
 
 from . import new_user, app, TestErebor, api
 
@@ -79,3 +81,29 @@ class TestPrices(TestErebor):
             '/pricing_data/histoday?fsym=BTC&tsym=USD&limit=1'
         )
         assert response.json == mock_histoday_price_data
+
+    def test_local_prices(self):
+        u_data, session_id = new_user(app)
+        mock_price_data = [
+            {'currency': 'ETH', 'time': 1451433600, 'close': 0.8925},
+            {'currency': 'ETH', 'time': 1453334400, 'close': 1.54},
+            {'currency': 'ETH', 'time': 1453420800, 'close': 1.52},
+            {'currency': 'ETH', 'time': 1455321600, 'close': 5.22},
+            {'currency': 'ETH', 'time': 1479859200, 'close': 9.78},
+            {'currency': 'ETH', 'time': 1506643200, 'close': 292.58}
+        ]
+        INSERT_PRICES = """
+        INSERT INTO prices (currency, date, price) VALUES """
+        args = ", ".join('(\'{}\', {}, {})'.format(
+            str(entry['currency']), entry['time'], entry['close'])
+            for entry in mock_price_data)
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(INSERT_PRICES + args)
+
+        request, response = app.test_client.post(
+            '/local_prices',
+            data=json.dumps({'from_date': 1451433600, 'to_date': 1479859200}),
+            cookies={'session_id': session_id})
+        p_data = response.json
+        assert len(p_data['result']) == 5

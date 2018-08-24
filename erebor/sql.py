@@ -220,3 +220,9 @@ WHERE activation_key = $1
 AND active = False
 RETURNING email_address, first_name, last_name
 """.strip()
+
+SELECT_PRICES_SQL = """
+SELECT *
+FROM prices
+WHERE date >= $1 AND date <= $2
+""".strip()

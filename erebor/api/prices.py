@@ -11,6 +11,9 @@ from . import authorized, fetch, limiter
 # errors
 from . import (error_response, TICKER_UNAVAILABLE)
 
+# sql
+from . import SELECT_PRICES_SQL
+
 
 prices_bp = Blueprint('prices')
 ticker_last_update = None
@@ -76,3 +79,13 @@ async def pricing_data(request, method):
     if 'hist' in method:
         return response.json(await historical_prices(method, request.args))
     return response.json(await current_prices(method, request.args))
+
+
+@prices_bp.route('/local_prices', methods=['POST'])
+@authorized()
+async def local_prices(request):
+    from_date = request.json['from_date']
+    to_date = request.json['to_date']
+    db = request.app.pg
+    prices = await db.fetch(SELECT_PRICES_SQL, from_date, to_date)
+    return response.json({'result': [dict(price) for price in prices]})
