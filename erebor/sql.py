@@ -3,8 +3,8 @@ SELECT
   crypt($1, password) = password AS accessed, id, sms_2fa_enabled,
   phone_number, uid::text
 FROM users
-WHERE email_address = $2
-OR username = $2
+WHERE email_address = LOWER($2)
+OR username = LOWER($2)
 """.strip()
 
 RESET_TOKEN_CREATION_SQL = """
@@ -13,7 +13,7 @@ INSERT INTO reset_tokens
 SELECT
      users.id, uuid_generate_v4(), CURRENT_TIMESTAMP
 FROM users
-WHERE email_address = $1
+WHERE email_address = LOWER($1)
 ON CONFLICT (user_id) DO UPDATE
 SET reset_token = uuid_generate_v4(),
     reset_token_creation_time = CURRENT_TIMESTAMP
@@ -52,8 +52,8 @@ WHERE id = $1
 
 UPDATE_USER_SQL = """
 UPDATE users
-SET first_name = $1, last_name = $2, phone_number = $3, email_address = $4,
-    username = $5
+SET first_name = $1, last_name = $2, phone_number = $3,
+    email_address = LOWER($4), username = LOWER($5)
 WHERE id = $6
 """.strip()
 
@@ -76,7 +76,8 @@ WITH x AS (
 )
 INSERT INTO users (password, salt, first_name, last_name, email_address,
                    username, phone_number, session_id, register_date)
-SELECT crypt(x.password, x.salt), x.salt, $2, $3, $4, $5, $6, $7, now()
+SELECT crypt(x.password, x.salt), x.salt, $2, $3, LOWER($4), LOWER($5), $6,
+       $7, now()
 FROM x
 RETURNING *
 """.strip()
@@ -119,7 +120,8 @@ WHERE id = $2
 VERIFY_SMS_LOGIN = """
 UPDATE users
 SET sms_verification = Null
-WHERE (email_address = $1 OR username = $1) AND sms_verification = $2
+WHERE (email_address = LOWER($1) OR username = LOWER($1))
+       AND sms_verification = $2
 RETURNING users.id, users.uid::text
 """.strip()
 
@@ -154,8 +156,8 @@ SELECT users.email_address, users.first_name,
 FROM users
 LEFT JOIN contact_transactions c ON c.user_id = users.id
 WHERE c.user_id = users.id
-AND (c.recipient = $1
-     OR c.recipient = $2)
+AND (LOWER(c.recipient) = LOWER($1)
+     OR LOWER(c.recipient) = LOWER($2))
 GROUP BY users.id
 """.strip()
 
@@ -189,8 +191,8 @@ SELECT public_addresses.address, public_addresses.currency, users.email_address
 FROM public_addresses, users
 WHERE public_addresses.user_id = users.id
 AND public_addresses.currency = $1
-AND (users.email_address = $2
-     OR users.username = $2
+AND (users.email_address = LOWER($2)
+     OR users.username = LOWER($2)
      OR users.phone_number = $2)
 """.strip()
 
@@ -203,14 +205,14 @@ WHERE id = $1
 SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL = """
 SELECT email_address
 FROM users
-WHERE username = $1
+WHERE username = LOWER($1)
 OR phone_number = $1
 """.strip()
 
 SELECT_USERNAME_FNAME_FROM_EMAIL_SQL = """
 SELECT username, first_name
 FROM users
-WHERE email_address = $1
+WHERE email_address = LOWER($1)
 """.strip()
 
 ACTIVATE_USER_SQL = """

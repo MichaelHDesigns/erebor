@@ -14,7 +14,9 @@ class TestUsers(TestErebor):
                                  'receive_emails_enabled', 'phone_number',
                                  'sms_2fa_enabled', 'active', 'register_date'}
         for each_key in test_user_data.keys() - {'password'}:
-            assert u_data[each_key] == test_user_data[each_key]
+            assert (u_data[each_key] == test_user_data[each_key].lower()
+                    if each_key == 'username' or each_key == 'email_address'
+                    else test_user_data[each_key])
 
         # B: Users can have one account per email
         request, response = app.test_client.post(
@@ -193,7 +195,9 @@ class TestUsers(TestErebor):
                                'first_name', 'last_name', 'phone_number',
                                'sms_2fa_enabled'}
         for each_key in test_user_data.keys() - {'password'}:
-            assert u_data[each_key] == test_user_data[each_key]
+            assert (u_data[each_key] == test_user_data[each_key].lower()
+                    if each_key == 'username' or each_key == 'email_address'
+                    else test_user_data[each_key])
 
     def test_update_user(self):
         u_data, session_id = new_user(app)
