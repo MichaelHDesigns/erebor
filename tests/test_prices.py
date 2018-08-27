@@ -105,5 +105,4 @@ class TestPrices(TestErebor):
             'from_date=1451433600&to_date=1479859200',
             cookies={'session_id': session_id})
         p_data = response.json
-        print(p_data)
         assert len(p_data['result']) == 5

@@ -115,6 +115,6 @@ async def local_prices(request):
         return error_response([INVALID_ARGS])
     db = request.app.prices_pg
     prices = await price_getter(currency, fiat, from_date, to_date, db)
-    if not prices:
-        return error_response([INVALID_CURRENCY_PAIR])
-    return response.json({'result': [dict(price) for price in prices]})
+    return (response.json(
+        {'result': [dict(price) for price in prices]}) if prices else
+        error_response([INVALID_CURRENCY_PAIR]))
