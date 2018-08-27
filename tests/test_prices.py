@@ -1,6 +1,5 @@
 import flexmock
 import psycopg2
-import json
 
 from . import new_user, app, TestErebor, api
 
@@ -93,17 +92,18 @@ class TestPrices(TestErebor):
             {'currency': 'ETH', 'time': 1506643200, 'close': 292.58}
         ]
         INSERT_PRICES = """
-        INSERT INTO prices (currency, date, price) VALUES """
-        args = ", ".join('(\'{}\', {}, {})'.format(
-            str(entry['currency']), entry['time'], entry['close'])
+        INSERT INTO ETH (currency, date, price, fiat) VALUES """
+        args = ", ".join('(\'{}\', {}, {}, \'{}\')'.format(
+            entry['currency'], entry['time'], entry['close'], 'USD')
             for entry in mock_price_data)
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor() as cur:
                 cur.execute(INSERT_PRICES + args)
 
-        request, response = app.test_client.post(
-            '/local_prices',
-            data=json.dumps({'from_date': 1451433600, 'to_date': 1479859200}),
+        request, response = app.test_client.get(
+            '/local_prices?currency=ETH&fiat=USD&'
+            'from_date=1451433600&to_date=1479859200',
             cookies={'session_id': session_id})
         p_data = response.json
+        print(p_data)
         assert len(p_data['result']) == 5

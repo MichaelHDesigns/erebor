@@ -21,8 +21,7 @@ from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
                         CREATE_RESET_TOKENS_TABLE_SQL,
                         CREATE_CONTACT_TRANSACTIONS_SQL,
                         CREATE_CURRENCY_ENUM_SQL,
-                        CREATE_ADDRESSES_TABLE_SQL,
-                        CREATE_PRICES_TABLE_SQL)  # noqa
+                        CREATE_ADDRESSES_TABLE_SQL)  # noqa
 
 app.blueprint(db_bp)
 app.blueprint(users_bp)
@@ -55,6 +54,7 @@ class TestErebor(object):
     def setup_method(method):
         method.postgresql = testing.postgresql.Postgresql()
         app.db = (method.postgresql.dsn())
+        app.prices_db = (method.postgresql.dsn())
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor() as cur:
                 cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
@@ -66,7 +66,11 @@ class TestErebor(object):
                 cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
                 cur.execute(CREATE_CONTACT_TRANSACTIONS_SQL)
                 cur.execute(CREATE_ADDRESSES_TABLE_SQL)
-                cur.execute(CREATE_PRICES_TABLE_SQL)
+                cur.execute("""CREATE TABLE IF NOT EXISTS ETH (
+                               currency e_currency,
+                               price FLOAT,
+                               date INTEGER,
+                               fiat TEXT)""")
 
         # mock SES
         boto_response = {'ResponseMetadata': {'RequestId': '12345'}}
