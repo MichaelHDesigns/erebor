@@ -42,6 +42,12 @@ async def init_pg(app, loop):
             max_size=10,
         )
         app.pg = PG(app.pg_pool)
+        app.prices_pg_pool = await create_pool(
+            **app.prices_db,
+            loop=loop,
+            max_size=10,
+        )
+        app.prices_pg = PG(app.prices_pg_pool)
     except exceptions.TooManyConnectionsError:
         print("Too many connections")
     except Exception as e:
