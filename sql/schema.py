@@ -66,11 +66,3 @@ CREATE TABLE IF NOT EXISTS public_addresses (
     CONSTRAINT pk_addresses PRIMARY KEY (user_id, currency)
 )
 """.strip()
-
-CREATE_PRICES_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS prices (
-    currency e_currency,
-    price FLOAT,
-    date INTEGER
-)
-""".strip()

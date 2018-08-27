@@ -223,6 +223,8 @@ RETURNING email_address, first_name, last_name
 
 SELECT_PRICES_SQL = """
 SELECT *
-FROM prices
-WHERE date >= $1 AND date <= $2
+FROM {}
+WHERE fiat = $1
+AND date >= $2 AND date <= $3
+ORDER BY date ASC
 """.strip()

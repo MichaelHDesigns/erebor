@@ -2,6 +2,7 @@ from datetime import datetime as dt
 import logging
 import requests
 import datetime
+from datetime import timedelta
 
 from aiocache import cached
 from sanic import Blueprint, response
@@ -9,7 +10,8 @@ from sanic import Blueprint, response
 from . import authorized, fetch, limiter
 
 # errors
-from . import (error_response, TICKER_UNAVAILABLE)
+from . import (error_response, TICKER_UNAVAILABLE, INVALID_TIMESTAMP,
+               INVALID_CURRENCY_PAIR, INVALID_ARGS)
 
 # sql
 from . import SELECT_PRICES_SQL
@@ -81,11 +83,38 @@ async def pricing_data(request, method):
     return response.json(await current_prices(method, request.args))
 
 
-@prices_bp.route('/local_prices', methods=['POST'])
+def seconds_left():
+    current = dt.utcnow()
+    time_til = (current + timedelta(days=1)
+                ).replace(second=0, microsecond=0, hour=0, minute=0)
+    seconds_left = (time_til - current).seconds
+    return seconds_left
+
+
+@cached(seconds_left())
+async def price_getter(currency, fiat, from_date, to_date, db):
+    price_data = await db.fetch(SELECT_PRICES_SQL.format(currency),
+                                fiat, from_date, to_date)
+    return price_data
+
+
+@prices_bp.route('/local_prices', methods=['GET'])
 @authorized()
 async def local_prices(request):
-    from_date = request.json['from_date']
-    to_date = request.json['to_date']
-    db = request.app.pg
-    prices = await db.fetch(SELECT_PRICES_SQL, from_date, to_date)
+    args = request.args
+    try:
+        currency = args['currency'][0].lower()
+        fiat = args['fiat'][0]
+        from_date = int(args['from_date'][0])
+        to_date = int(args['to_date'][0])
+    except KeyError:
+        return error_response([INVALID_ARGS])
+    except ValueError:
+        return error_response([INVALID_TIMESTAMP])
+    except AttributeError:
+        return error_response([INVALID_ARGS])
+    db = request.app.prices_pg
+    prices = await price_getter(currency, fiat, from_date, to_date, db)
+    if not prices:
+        return error_response([INVALID_CURRENCY_PAIR])
     return response.json({'result': [dict(price) for price in prices]})

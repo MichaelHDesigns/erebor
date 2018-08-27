@@ -47,6 +47,12 @@ INVALID_PHONE_NUMBER = {'code': 116, 'message': 'Invalid phone number',
 RATE_LIMIT_EXCEEDED = {'code': 429, 'message': 'Too many requests.',
                        'status': 429}
 ROUTE_NOT_FOUND = {'code': 404, 'message': 'Route not found', 'status': 404}
+INVALID_TIMESTAMP = {
+    'code': 117,
+    'message': 'Invalid timestamp, please supply a unix timestmap',
+    'status': 404}
+INVALID_ARGS = {
+    'code': 118, 'message': 'Invalid arguments supplied', 'status': 404}
 
 # Blockchain errors
 INSUFFICIENT_BALANCE = {'code': 200, 'message': 'Insufficient balance',
@@ -58,3 +64,5 @@ NO_PUBLIC_KEY = {'code': 203, 'message': 'No public key found for user',
                  'status': 403}
 INVALID_SWAP_SERVICE = {'code': 204, 'message': 'Unsupported swap service',
                         'status': 403}
+INVALID_CURRENCY_PAIR = {
+    'code': 205, 'message': 'Currency pair not supported', 'status': 404}
