@@ -16,6 +16,7 @@ from erebor.db import db_bp  # noqa
 from erebor.api.swaps.swap import swap_bp  # noqa
 from erebor.email import boto3, AWS_REGION  # noqa
 from erebor.erebor import app  # noqa
+from erebor import blockchain  # noqa
 
 from sql.schema import (CREATE_USERS_TABLE_SQL, CREATE_IV_TABLE_SQL,
                         CREATE_RESET_TOKENS_TABLE_SQL,

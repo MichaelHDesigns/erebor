@@ -12,7 +12,8 @@ ALTER TABLE reset_tokens RENAME COLUMN id TO user_id;
 
 CREATE TYPE e_currency AS ENUM (
     'ETH',
-    'BTC'
+    'BTC',
+    'BOAR'
 )
 
 CREATE TABLE IF NOT EXISTS public_addresses (

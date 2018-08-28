@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS contact_transactions (
 CREATE_CURRENCY_ENUM_SQL = """
 CREATE TYPE e_currency AS ENUM (
     'ETH',
-    'BTC'
+    'BTC',
+    'BOAR'
 )
 """.strip()
 

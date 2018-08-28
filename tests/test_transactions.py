@@ -6,7 +6,7 @@ import psycopg2
 import flexmock
 from psycopg2.extras import RealDictCursor
 
-from . import new_user, app, TestErebor, api, test_user_data
+from . import new_user, app, TestErebor, api, test_user_data, blockchain
 
 
 class TestTransactions(TestErebor):
@@ -36,6 +36,14 @@ class TestTransactions(TestErebor):
         assert response.status == 200
         assert response.json == {'success': ['Address registered']}
 
+        # B: User adds a new BOAR wallet and registers the public address
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(u_data['uid']),
+            data=json.dumps({'currency': 'BOAR', 'address': '0xBOARBEEF'}),
+            cookies={'session_id': session_id})
+        assert response.status == 200
+        assert response.json == {'success': ['Address registered']}
+
         # Retrieve user's BTC address to verify it has been set
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -54,6 +62,15 @@ class TestTransactions(TestErebor):
                 result = cur.fetchone()
         assert result['address'] == '0xDEADBEEF'
         assert result['currency'] == 'ETH'
+
+        # Retrieve user's BOAR address to verify it has been set
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(SELECT_ADDRESS_SQL,
+                            ('BOAR', 'test@example.com'))
+                result = cur.fetchone()
+        assert result['address'] == '0xBOARBEEF'
+        assert result['currency'] == 'BOAR'
 
         # B: User decides to create a new ETH wallet to serve as their default
         # public ETH address
@@ -99,6 +116,8 @@ class TestTransactions(TestErebor):
                 result = cur.fetchall()
         assert result == [
             {'user_id': 1,
+             'currency': 'BOAR', 'address': '0xBOARBEEF'},
+            {'user_id': 1,
              'currency': 'ETH', 'address': '0xNEWETHADDRESS'},
             {'user_id': 1,
              'currency': 'BTC', 'address': '0xNEWBTCADDRESS'}
@@ -108,8 +127,10 @@ class TestTransactions(TestErebor):
         flexmock(requests).should_receive('get').and_return(
             flexmock(json=lambda: json.loads(
                 '{"jsonrpc": "2.0", "id": 1,'
-                '"result": "0x37942530c308b7e7",'
+                '"result": "0x1b1ae4d6e2ef500000",'
                 '"final_balance": 556484529}')))
+        flexmock(blockchain).should_receive('get_token_balance').and_return(
+            500)
         flexmock(api.transactions).should_receive('send_sms').and_return()
         u_data, session_id = new_user(app)
 
@@ -132,7 +153,7 @@ class TestTransactions(TestErebor):
              OR c_trans.recipient = %s)
         """.strip()
 
-        # B: User makes four contact transactions to contacts that are not
+        # B: User makes five contact transactions to contacts that are not
         # currently signed up with Hoard
         # ---------------------------------------------------------------------
         # Transaction 1
@@ -162,8 +183,17 @@ class TestTransactions(TestErebor):
             cookies={'session_id': session_id})
         assert response.json.keys() == {'success', 'transaction_uid'}
 
-        # B: User makes a contact transaction to a phone number
         # Transaction 4
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'first_test@example.com',
+                             'amount': 1, 'currency': 'BOAR'}),
+            cookies={'session_id': session_id})
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # B: User makes a contact transaction to a phone number
+        # Transaction 5
         request, response = app.test_client.post(
             '/contacts/transaction/',
             data=json.dumps({'sender': '0xDEADBEEF',
@@ -191,6 +221,11 @@ class TestTransactions(TestErebor):
                             ('first_test@example.com', ''))
                 pending_transactions = cur.fetchall()
         assert pending_transactions == [
+            {'email_address': 'test@example.com',
+             'first_name': 'Testy',
+             'recipient': 'first_test@example.com',
+             'currency': 'BOAR', 'amount': 1.0,
+             'created': datetime.now().replace(microsecond=0, second=0)},
             {'email_address': 'test@example.com',
              'first_name': 'Testy',
              'recipient': 'first_test@example.com',

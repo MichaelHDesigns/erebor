@@ -19,6 +19,8 @@ from . import (REGISTER_ADDRESS_SQL, SELECT_ADDRESS_SQL,
                SELECT_ALL_CONTACT_TRANSACTIONS)
 
 transactions_bp = Blueprint('transactions')
+supported_currencies = ['ETH', 'BTC', 'BOAR']
+token_list = {'BOAR': '0x0d729b3e930521e95de0efbdcd573f4cdc697b82'}
 
 
 async def public_key_for_user(recipient, currency, db):
@@ -54,7 +56,8 @@ async def notify_contact_transaction(transaction, user_id, db):
             from_email_address=from_email_address,
             from_first_name=from_first_name,
             amount=transaction['amount'],
-            currency=transaction['currency']
+            currency=transaction['currency'] if not transaction.get('symbol')
+            else transaction['symbol']
         )
         notify_email.send()
         return True
@@ -80,7 +83,7 @@ async def register_public_keys(request, user_uid):
     if request.json.keys() != {'currency', 'address'}:
         return error_response([MISSING_FIELDS])
     currency = request.json['currency']
-    if currency not in ['ETH', 'BTC']:
+    if currency not in supported_currencies:
         return error_response([UNSUPPORTED_CURRENCY])
     address = request.json['address']
     user_id = request['session']['user_id']
@@ -100,16 +103,21 @@ async def contact_transaction(request):
     currency = transaction['currency']
     sender_address = transaction['sender']
     amount = transaction['amount']
+    if amount <= 0:
+        return error_response([NEGATIVE_AMOUNT])
     symbol = None
     if len(currency) == 42:
         symbol = get_symbol(currency)
         if symbol is None:
             return error_response([UNSUPPORTED_CURRENCY])
+        transaction['symbol'] = symbol
         transaction['currency'] = symbol
-    elif currency not in ['ETH', 'BTC']:
+    elif currency in token_list.keys():
+        symbol = currency
+        transaction['symbol'] = symbol
+        currency = token_list[currency]
+    elif currency not in supported_currencies:
         return error_response([UNSUPPORTED_CURRENCY])
-    if amount <= 0:
-        return error_response([NEGATIVE_AMOUNT])
     if get_balance(sender_address, currency) < amount:
         return error_response([INSUFFICIENT_BALANCE])
     recipient_public_key = await public_key_for_user(
