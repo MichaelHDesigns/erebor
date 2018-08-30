@@ -221,10 +221,16 @@ AND active = False
 RETURNING email_address, first_name, last_name
 """.strip()
 
-SELECT_PRICES_SQL = """
+SELECT_PRICE_RANGE_SQL = """
 SELECT *
-FROM {}
-WHERE fiat = $1
-AND date >= $2 AND date <= $3
+FROM {}_{}
+WHERE date >= $1 AND date <= $2
 ORDER BY date ASC
+""".strip()
+
+SELECT_PRICE_TS_SQL = """
+SELECT *
+FROM {}_{}
+ORDER BY abs(date::date - date ($1))
+LIMIT 1
 """.strip()

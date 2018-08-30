@@ -66,7 +66,7 @@ class TestErebor(object):
                 cur.execute(CREATE_RESET_TOKENS_TABLE_SQL)
                 cur.execute(CREATE_CONTACT_TRANSACTIONS_SQL)
                 cur.execute(CREATE_ADDRESSES_TABLE_SQL)
-                cur.execute("""CREATE TABLE IF NOT EXISTS ETH (
+                cur.execute("""CREATE TABLE IF NOT EXISTS ETH_USD (
                                currency TEXT,
                                price FLOAT,
                                date TIMESTAMP,

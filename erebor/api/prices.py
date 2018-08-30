@@ -15,7 +15,7 @@ from . import (error_response, TICKER_UNAVAILABLE, INVALID_TIMESTAMP,
                INVALID_CURRENCY_PAIR, INVALID_ARGS)
 
 # sql
-from . import SELECT_PRICES_SQL
+from . import SELECT_PRICE_RANGE_SQL, SELECT_PRICE_TS_SQL
 
 
 prices_bp = Blueprint('prices')
@@ -93,17 +93,24 @@ def seconds_left(delta):
 
 
 @cached(seconds_left(timedelta(hours=12)))
-async def price_getter(currency, fiat, from_date, to_date, db):
+async def price_getter(currency, fiat, db,
+                       from_date=None, to_date=None, step_size=None,
+                       timestamps=None):
     try:
-        price_data = await db.fetch(SELECT_PRICES_SQL.format(currency),
-                                    fiat, from_date, to_date)
-    except UndefinedTableError:
+        if timestamps is None:
+            price_data = await db.fetch(
+                SELECT_PRICE_RANGE_SQL.format(currency, fiat),
+                from_date, to_date)
+        else:
+            price_data = await db.fetch(
+                SELECT_PRICE_TS_SQL.format(currency, fiat), timestamps[0]
+            )
+    except UndefinedTableError as e:
         return False
     return price_data
 
 
-@prices_bp.route('/local_prices', methods=['GET'])
-@authorized()
+@prices_bp.route('/local_prices/pricerange', methods=['GET'])
 async def local_prices(request):
     args = request.args
     try:
@@ -118,7 +125,30 @@ async def local_prices(request):
     except AttributeError:
         return error_response([INVALID_ARGS])
     db = request.app.prices_pg
-    prices = await price_getter(currency, fiat, from_date, to_date, db)
+    prices = await price_getter(currency, fiat, db,
+                                from_date=from_date, to_date=to_date)
+    return (response.json(
+        {'result': [dict(price) for price in prices]}) if prices else
+        error_response([INVALID_CURRENCY_PAIR]))
+
+
+@prices_bp.route('/local_prices/timestamp', methods=['GET'])
+async def timestamp_prices(request):
+    args = request.args
+    if len(args) != 3:
+        return error_response([INVALID_ARGS])
+    try:
+        currency = args['currency'][0]
+        fiat = args['fiat'][0]
+        timestamps = [dt.fromtimestamp(int(ts)) for ts in args['ts']]
+    except KeyError:
+        return error_response([INVALID_ARGS])
+    except ValueError:
+        return error_response([INVALID_TIMESTAMP])
+    except AttributeError:
+        return error_response([INVALID_ARGS])
+    db = request.app.prices_pg
+    prices = await price_getter(currency, fiat, db, timestamps=timestamps)
     return (response.json(
         {'result': [dict(price) for price in prices]}) if prices else
         error_response([INVALID_CURRENCY_PAIR]))

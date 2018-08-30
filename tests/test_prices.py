@@ -82,7 +82,6 @@ class TestPrices(TestErebor):
         assert response.json == mock_histoday_price_data
 
     def test_local_prices(self):
-        u_data, session_id = new_user(app)
         mock_price_data = [
             {'currency': 'ETH', 'time': 1451433600, 'close': 0.8925},
             {'currency': 'ETH', 'time': 1453334400, 'close': 1.54},
@@ -92,7 +91,7 @@ class TestPrices(TestErebor):
             {'currency': 'ETH', 'time': 1506643200, 'close': 292.58}
         ]
         INSERT_PRICES = """
-        INSERT INTO ETH (currency, date, price, fiat) VALUES """
+        INSERT INTO ETH_USD (currency, date, price, fiat) VALUES """
         args = ", ".join('(\'{}\', to_timestamp({}), {}, \'{}\')'.format(
             entry['currency'], entry['time'], entry['close'], 'USD')
             for entry in mock_price_data)
@@ -100,9 +99,23 @@ class TestPrices(TestErebor):
             with conn.cursor() as cur:
                 cur.execute(INSERT_PRICES + args)
 
+        # B: app requests range of dates
         request, response = app.test_client.get(
-            '/local_prices?currency=ETH&fiat=USD&'
-            'from_date=1451433600&to_date=1479859200',
-            cookies={'session_id': session_id})
+            '/local_prices/pricerange?currency=ETH&fiat=USD&'
+            'from_date=1451433600&to_date=1479859200')
         p_data = response.json
         assert len(p_data['result']) == 5
+
+        # B: app requests earliest timestamp
+        request, response = app.test_client.get(
+            '/local_prices/timestamp?currency=ETH&fiat=USD&'
+            'ts=1234')
+        p_data = response.json
+        print(p_data)
+
+        # B: app requests earliest timestamp
+        request, response = app.test_client.get(
+            '/local_prices/timestamp?currency=ETH&fiat=USD&'
+            'ts=1453420000')
+        p_data = response.json
+        print(p_data)

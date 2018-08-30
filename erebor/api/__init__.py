@@ -34,7 +34,8 @@ from erebor.sql import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,  # no
                      SELECT_USERNAME_FNAME_FROM_EMAIL_SQL,
                      SELECT_EMAIL_PREFS_SQL, UPDATE_EMAIL_PREFS_SQL,
                      CREATE_IV_SQL, IV_RESULTS_SQL, SELECT_USER_SQL,
-                     SELECT_ALL_CONTACT_TRANSACTIONS, SELECT_PRICES_SQL)
+                     SELECT_ALL_CONTACT_TRANSACTIONS, SELECT_PRICE_RANGE_SQL,
+                     SELECT_PRICE_TS_SQL)
 
 
 email_pattern = re.compile('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$')
