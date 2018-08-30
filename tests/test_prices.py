@@ -93,7 +93,7 @@ class TestPrices(TestErebor):
         ]
         INSERT_PRICES = """
         INSERT INTO ETH (currency, date, price, fiat) VALUES """
-        args = ", ".join('(\'{}\', {}, {}, \'{}\')'.format(
+        args = ", ".join('(\'{}\', to_timestamp({}), {}, \'{}\')'.format(
             entry['currency'], entry['time'], entry['close'], 'USD')
             for entry in mock_price_data)
         with psycopg2.connect(**app.db) as conn:

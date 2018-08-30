@@ -105,8 +105,8 @@ async def local_prices(request):
     try:
         currency = args['currency'][0].lower()
         fiat = args['fiat'][0]
-        from_date = int(args['from_date'][0])
-        to_date = int(args['to_date'][0])
+        from_date = dt.fromtimestamp(int(args['from_date'][0]))
+        to_date = dt.fromtimestamp(int(args['to_date'][0]))
     except KeyError:
         return error_response([INVALID_ARGS])
     except ValueError:
