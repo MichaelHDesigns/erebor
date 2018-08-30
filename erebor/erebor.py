@@ -101,16 +101,21 @@ def load_aws_secret(secret_name):
 
 
 if __name__ == '__main__':
-    secret_name = os.environ['EREBOR_DB_AWS_SECRET']
-
-    if secret_name:
+    erebor_secret_name = os.environ.get('EREBOR_DB_AWS_SECRET')
+    prices_secret_name = os.environ.get('PRICES_DB_AWS_SECRET')
+    if erebor_secret_name and prices_secret_name:
         from erebor.db import db_bp
-        secret = load_aws_secret(secret_name)
-        app.db = dict(database=secret['dbname'],
-                      user=secret['username'],
-                      password=secret['password'],
-                      host=secret['host'],
-                      port=secret['port'])
+        erebor_secret = load_aws_secret(erebor_secret_name)
+        app.db = dict(database=erebor_secret['dbname'],
+                      user=erebor_secret['username'],
+                      password=erebor_secret['password'],
+                      host=erebor_secret['host'],
+                      port=erebor_secret['port'])
+        app.prices_db = dict(database=prices_secret_name['dbname'],
+                             user=prices_secret_name['username'],
+                             password=prices_secret_name['password'],
+                             host=prices_secret_name['host'],
+                             port=prices_secret_name['port'])
         app.blueprint(db_bp)
     else:
         raise Exception("Missing database credentials")

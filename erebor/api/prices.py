@@ -5,6 +5,7 @@ import datetime
 from datetime import timedelta
 
 from aiocache import cached
+from asyncpg.exceptions import UndefinedTableError
 from sanic import Blueprint, response
 
 from . import authorized, fetch, limiter
@@ -83,18 +84,21 @@ async def pricing_data(request, method):
     return response.json(await current_prices(method, request.args))
 
 
-def seconds_left():
+def seconds_left(delta):
     current = dt.utcnow()
-    time_til = (current + timedelta(days=1)
-                ).replace(second=0, microsecond=0, hour=0, minute=0)
+    time_til = (current + delta
+                ).replace(minute=0, second=0, microsecond=0)
     seconds_left = (time_til - current).seconds
     return seconds_left
 
 
-@cached(seconds_left())
+@cached(seconds_left(timedelta(hours=12)))
 async def price_getter(currency, fiat, from_date, to_date, db):
-    price_data = await db.fetch(SELECT_PRICES_SQL.format(currency),
-                                fiat, from_date, to_date)
+    try:
+        price_data = await db.fetch(SELECT_PRICES_SQL.format(currency),
+                                    fiat, from_date, to_date)
+    except UndefinedTableError:
+        return False
     return price_data
 
 
@@ -103,7 +107,7 @@ async def price_getter(currency, fiat, from_date, to_date, db):
 async def local_prices(request):
     args = request.args
     try:
-        currency = args['currency'][0].lower()
+        currency = args['currency'][0]
         fiat = args['fiat'][0]
         from_date = dt.fromtimestamp(int(args['from_date'][0]))
         to_date = dt.fromtimestamp(int(args['to_date'][0]))
