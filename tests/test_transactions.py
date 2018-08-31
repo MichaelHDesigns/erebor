@@ -533,6 +533,10 @@ class TestTransactions(TestErebor):
             cookies={'session_id': session_id}
         )
         assert len(response.json) == 4
+        assert response.json[0].keys() == {'uid', 'recipient', 'currency',
+                                           'amount', 'created',
+                                           'transaction_type', 'status',
+                                           'transaction_hash'}
 
     def test_contact_transaction_confirmation(self):
         u_data, session_id = new_user(app)

@@ -34,7 +34,8 @@ async def record_contact_transaction(transaction, user_id, db):
     transaction_uid = await db.fetchrow(
         CREATE_CONTACT_TRANSACTION_SQL,
         user_id, transaction['recipient'],
-        transaction['currency'], transaction['amount'])
+        transaction['currency'], transaction['amount'],
+        transaction['transaction_type'])
     return transaction_uid['uid']
 
 
@@ -103,6 +104,7 @@ async def contact_transaction(request):
     currency = transaction['currency']
     sender_address = transaction['sender']
     amount = transaction['amount']
+    transaction['transaction_type'] = 'send'
     if amount <= 0:
         return error_response([NEGATIVE_AMOUNT])
     symbol = None
@@ -237,7 +239,8 @@ async def request_funds(request):
         {
             "recipient": recipient,
             "currency": currency,
-            "amount": amount
+            "amount": amount,
+            "transaction_type": "request"
         },
         request['session']['user_id'],
         request['db']

@@ -138,8 +138,8 @@ WHERE scan_reference = $1
 
 CREATE_CONTACT_TRANSACTION_SQL = """
 INSERT INTO contact_transactions (user_id, recipient,
-                                  currency, amount, created)
-VALUES ($1, $2, $3, $4, now())
+                                  currency, amount, created, transaction_type)
+VALUES ($1, $2, $3, $4, now(), $5)
 RETURNING uid::text
 """.strip()
 
@@ -162,13 +162,15 @@ GROUP BY users.id
 """.strip()
 
 SELECT_ALL_CONTACT_TRANSACTIONS = """
-SELECT uid::text, recipient, currency, amount, created, status
+SELECT uid::text, recipient, currency, amount, created, status,
+       transaction_type, transaction_hash
 FROM contact_transactions
 WHERE user_id = $1
 """
 
 SELECT_CONTACT_TRANSACTION_DATA = """
-SELECT  uid::text, recipient, currency, amount, created, status
+SELECT  uid::text, recipient, currency, amount, created, status,
+        transaction_type, transaction_hash
 FROM contact_transactions
 WHERE uid = $1
 """.strip()

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS contact_transactions (
     transaction_hash TEXT DEFAULT NULL,
     recipient TEXT,
     user_id INTEGER REFERENCES users(id),
+    transaction_type TEXT,
     currency e_currency,
     amount FLOAT,
     created TIMESTAMP(0),
