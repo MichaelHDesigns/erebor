@@ -175,6 +175,19 @@ FROM contact_transactions
 WHERE uid = $1
 """.strip()
 
+SELECT_RECIPIENT_STATUS_SQL = """
+SELECT users.username, users.email_address,
+       users.phone_number, addresses.address, addresses.currency
+FROM contact_transactions as transactions, users, public_addresses as addresses
+WHERE transactions.uid = $1
+AND (transactions.recipient = users.username OR
+     transactions.recipient = users.email_address OR
+     transactions.recipient = users.phone_number)
+AND users.active = True
+AND addresses.currency::text = transactions.currency::text
+AND addresses.user_id = users.id
+""".strip()
+
 UPDATE_TRANSACTION_CONFIRMATION_SQL = """
 UPDATE contact_transactions
 SET status = $1, transaction_hash = $2

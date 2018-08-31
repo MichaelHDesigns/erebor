@@ -47,6 +47,8 @@ INVALID_PHONE_NUMBER = {'code': 116, 'message': 'Invalid phone number',
 RATE_LIMIT_EXCEEDED = {'code': 429, 'message': 'Too many requests.',
                        'status': 429}
 ROUTE_NOT_FOUND = {'code': 404, 'message': 'Route not found', 'status': 404}
+USER_NOT_REGISTERED = {'code': 117, 'message': 'User has not registered yet',
+                       'status': 400}
 
 # Blockchain errors
 INSUFFICIENT_BALANCE = {'code': 200, 'message': 'Insufficient balance',

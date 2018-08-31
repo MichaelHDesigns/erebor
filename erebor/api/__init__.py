@@ -11,7 +11,7 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,  # noqa
                            NO_PUBLIC_KEY, INVALID_EMAIL, USER_NOT_FOUND,
                            USERNAME_EXISTS, EMAIL_ADDRESS_EXISTS,
                            INVALID_TRANSACTION_UID, INVALID_PHONE_NUMBER,
-                           INVALID_SWAP_SERVICE)
+                           INVALID_SWAP_SERVICE, USER_NOT_REGISTERED)
 from erebor.email import Email  # noqa
 from erebor.render import (unsubscribe_template, result_template, # noqa
                            password_template, RESULT_ACTIONS)
@@ -33,7 +33,8 @@ from erebor.sql import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,  # no
                      SELECT_USERNAME_FNAME_FROM_EMAIL_SQL,
                      SELECT_EMAIL_PREFS_SQL, UPDATE_EMAIL_PREFS_SQL,
                      CREATE_IV_SQL, IV_RESULTS_SQL, SELECT_USER_SQL,
-                     SELECT_ALL_CONTACT_TRANSACTIONS)
+                     SELECT_ALL_CONTACT_TRANSACTIONS,
+                     SELECT_RECIPIENT_STATUS_SQL)
 
 
 email_pattern = re.compile('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$')

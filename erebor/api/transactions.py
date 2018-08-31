@@ -9,14 +9,14 @@ from . import (email_pattern, e164_pattern,
 # errors
 from . import (UNAUTHORIZED, MISSING_FIELDS, UNSUPPORTED_CURRENCY,
                NEGATIVE_AMOUNT, INSUFFICIENT_BALANCE, NO_PUBLIC_KEY,
-               INVALID_TRANSACTION_UID, USER_NOT_FOUND)
+               INVALID_TRANSACTION_UID, USER_NOT_FOUND, USER_NOT_REGISTERED)
 # sql
 from . import (REGISTER_ADDRESS_SQL, SELECT_ADDRESS_SQL,
                CREATE_CONTACT_TRANSACTION_SQL, SELECT_EMAIL_AND_FNAME_SQL,
                SELECT_CONTACT_TRANSACTION_DATA,
                UPDATE_TRANSACTION_CONFIRMATION_SQL,
                SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL,
-               SELECT_ALL_CONTACT_TRANSACTIONS)
+               SELECT_ALL_CONTACT_TRANSACTIONS, SELECT_RECIPIENT_STATUS_SQL)
 
 transactions_bp = Blueprint('transactions')
 supported_currencies = ['ETH', 'BTC', 'BOAR']
@@ -201,6 +201,23 @@ async def contact_transaction_by_user(request, user_uid):
                                   request['session']['user_id'])
     transactions = [dict(record) for record in transactions]
     return response.json(transactions)
+
+
+@transactions_bp.route(
+    '/contacts/transaction/<transaction_uid>/recipient_status',
+    methods=['GET'])
+@limiter.shared_limit('50 per minute',
+                      scope='/contact/transaction/trans_uid/recipient_status')
+@authorized()
+async def recipient_status(request, transaction_uid):
+    db = request['db']
+    try:
+        recipient_status = await db.fetchrow(SELECT_RECIPIENT_STATUS_SQL,
+                                             transaction_uid)
+    except ValueError:
+        return error_response([INVALID_TRANSACTION_UID])
+    return (response.json(dict(recipient_status)) if recipient_status else
+            error_response([USER_NOT_REGISTERED]))
 
 
 @transactions_bp.route('/request_funds/', methods=['POST'])

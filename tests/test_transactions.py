@@ -667,3 +667,111 @@ class TestTransactions(TestErebor):
                  'email_address': test_user_data['email_address'],
                  'currency': 'BTC', 'amount': 9001}))
         assert response.json.keys() == {'success', 'transaction_uid'}
+
+    def test_recipient_status(self):
+        u_data, session_id = new_user(app)
+        other_test_user_data = test_user_data.copy()
+        other_test_user_data['first_name'] = 'Other'
+        other_test_user_data['email_address'] = 'test2@example.com'
+        other_test_user_data['username'] = 'c00l_n3w_us3r'
+        other_test_user_data['phone_number'] = '+11234567890'
+
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}')))
+
+        # B: User transacts with their contact who has no
+        # Hoard account with ETH
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({
+                'sender': '0xDEADBEEF',
+                'recipient': other_test_user_data['email_address'],
+                'amount': 1, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        eth_transaction_uid = response.json['transaction_uid']
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # B: User transacts with their contact who has no
+        # Hoard account with BTC
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({
+                'sender': '3abtcaddress',
+                'recipient': other_test_user_data['email_address'],
+                'amount': 1, 'currency': 'BTC'}),
+            cookies={'session_id': session_id})
+        btc_transaction_uid = response.json['transaction_uid']
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # B: User checks status of recipient's account which has not signed
+        # up yet
+        request, response = app.test_client.get(
+            '/contacts/transaction/'
+            '{}/recipient_status'.format(eth_transaction_uid),
+            cookies={'session_id': session_id})
+        status_data = response.json
+        assert status_data.keys() == {'errors'}
+
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_test_user_data))
+        other_data = response.json
+        other_session = response.cookies['session_id'].value
+
+        # Connect to the DB to retrieve the user's activation key
+        SELECT_ACTIVATION_KEY = """
+        SELECT activation_key, active
+        FROM users
+        WHERE id = 2
+        """.strip()
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(SELECT_ACTIVATION_KEY)
+                result = cur.fetchone()
+        activation_key = result[0]
+        active = result[1]
+
+        assert active is False
+
+        # B: User activates their account via the activation link
+        request, response = app.test_client.get(
+            '/activate/{}'.format(activation_key))
+
+        # B: User registers ETH
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(other_data['uid']),
+            data=json.dumps({'currency': 'ETH', 'address': '0xNEWBEEF'}),
+            cookies={'session_id': other_session})
+        assert response.status == 200
+
+        # B: User registers BTC
+        request, response = app.test_client.post(
+            '/users/{}/register_address'.format(other_data['uid']),
+            data=json.dumps({'currency': 'BTC', 'address': '3btCaddress'}),
+            cookies={'session_id': other_session})
+        assert response.status == 200
+
+        # B: User checks status of recipient's account for the ETH transaction
+        request, response = app.test_client.get(
+            '/contacts/transaction/'
+            '{}/recipient_status'.format(eth_transaction_uid),
+            cookies={'session_id': session_id})
+        status_data = response.json
+        for key in status_data.keys() - {'address', 'currency'}:
+            assert status_data[key] == other_test_user_data[key]
+        assert status_data['address'] == '0xNEWBEEF'
+        assert status_data['currency'] == 'ETH'
+
+        # B: User checks status of recipient's account for the BTC transaction
+        request, response = app.test_client.get(
+            '/contacts/transaction/'
+            '{}/recipient_status'.format(btc_transaction_uid),
+            cookies={'session_id': session_id})
+        status_data = response.json
+        for key in status_data.keys() - {'address', 'currency'}:
+            assert status_data[key] == other_test_user_data[key]
+        assert status_data['address'] == '3btCaddress'
+        assert status_data['currency'] == 'BTC'
