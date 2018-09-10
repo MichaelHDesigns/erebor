@@ -22,13 +22,15 @@ Endpoints are organized into their own modules corresponding to functionality.
 
 ### Transactions
  - /users/<user_uid>/register_address
+ - /users/<user_uid>/contact_transactions
  - /contacts/transaction
  - /contacts/transaction_data/<transaction_uid>
  - /contacts/transaction_confirmation/<transaction_uid>
+ - /contacts/transaction/<transaction_uid>/recipient_status
  - /request_funds
 
 ### Prices - uses cryptocompare API
- - /pricing_data/method
+ - /pricing_data/\<method>
  - /ticker
 
 ### Support
