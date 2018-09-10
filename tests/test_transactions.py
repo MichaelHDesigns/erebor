@@ -394,7 +394,8 @@ class TestTransactions(TestErebor):
                              'recipient': 'test@example.com',
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {'public_key': '0xDEADBEEF'}
+        assert response.json['public_key'] == '0xDEADBEEF'
+        assert response.json.keys() == {'public_key', 'transaction_uid'}
 
         # B: User transacts with another Hoard user via username and
         # the public key of the recipient is shown
@@ -404,7 +405,8 @@ class TestTransactions(TestErebor):
                              'recipient': 'xXtestyXx',
                              'amount': 2, 'currency': 'ETH'}),
             cookies={'session_id': session_id})
-        assert response.json == {'public_key': '0xDEADBEEF'}
+        assert response.json['public_key'] == '0xDEADBEEF'
+        assert response.json.keys() == {'public_key', 'transaction_uid'}
 
         # Set up mock to return appropriate values through subsequent infura
         # requests: get_symbol, get_balance, get_decimal
@@ -432,7 +434,8 @@ class TestTransactions(TestErebor):
                  'amount': 2,
                  'currency': '0x0d729b3e930521e95de0efbdcd573f4cdc697b82'}),
             cookies={'session_id': session_id})
-        assert response.json == {'public_key': '0xDEADBEEF'}
+        assert response.json['public_key'] == '0xDEADBEEF'
+        assert response.json.keys() == {'public_key', 'transaction_uid'}
 
     def test_contact_transaction_data(self):
         u_data, session_id = new_user(app)

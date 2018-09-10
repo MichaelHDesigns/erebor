@@ -134,16 +134,17 @@ async def contact_transaction(request):
         if not notified:
             return error_response([NO_PUBLIC_KEY])
 
-        # Record in DB
-        transaction_uid = await record_contact_transaction(
-            transaction,
-            request['session']['user_id'],
-            request['db'])
-        return response.json(
-            {"success": ["Recipient has been notified of pending "
-                         "transaction"],
-             "transaction_uid": transaction_uid})
-    return response.json({'public_key': recipient_public_key[0]})
+        resp = {"success": ["Recipient has been notified of pending "
+                            "transaction"]}
+    else:
+        resp = {'public_key': recipient_public_key[0]}
+    # Record in DB
+    transaction_uid = await record_contact_transaction(
+        transaction,
+        request['session']['user_id'],
+        request['db'])
+    resp['transaction_uid'] = transaction_uid
+    return response.json(resp)
 
 
 @transactions_bp.route('/contacts/transaction_data/<transaction_uid>',
