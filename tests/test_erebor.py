@@ -2,6 +2,7 @@ import json
 
 import flexmock
 import requests
+import pytest
 
 from . import app, TestErebor, new_user
 
@@ -11,6 +12,7 @@ class TestResources(TestErebor):
         request, response = app.test_client.head('/health')
         assert response.status == 200
 
+    @pytest.mark.skip(reason="Skip for load testing")
     def test_limiter(self):
         for i in range(0, 49):
             request, response = app.test_client.head('/health')

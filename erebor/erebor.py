@@ -24,7 +24,7 @@ app = Sanic(log_config=logging_config
 CORS(app, automatic_options=True)
 
 limiter = Limiter(app,
-                  global_limits=['50 per minute'],
+                  global_limits=['500 per second'],
                   key_func=get_remote_address)
 
 
