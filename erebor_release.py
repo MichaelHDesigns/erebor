@@ -17,6 +17,8 @@ def get_version_from_git():
         ['git', 'describe', '--tags']
     )
     git_version_string = label.strip().decode('UTF-8')
+    if git_version_string[0] == 'v':
+        git_version_string = git_version_string[1:]
     git_version = semantic_version.Version(git_version_string)
     git_version = '.'.join(str(item) for item in list(git_version)[:3])
     return git_version if semantic_version.validate(git_version) else False
