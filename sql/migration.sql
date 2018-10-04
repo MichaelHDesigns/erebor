@@ -8,6 +8,7 @@ ALTER TABLE contact_transactions ADD COLUMN confirmed BOOL DEFAULT NULL;
 ALTER TABLE contact_transactions RENAME COLUMN to_email_address TO recipient;
 ALTER TABLE contact_transactions ADD COLUMN transaction_type TEXT;
 ALTER TABLE contact_transactions ALTER COLUMN currency TYPE TEXT;
+ALTER TABLE contact_transaction ADD COLUMN last_notified TIMESTAMP(0) DEFAULT now()
 ALTER TABLE users ADD COLUMN register_date DATE;
 ALTER TABLE reset_tokens DROP COLUMN email_address;
 ALTER TABLE reset_tokens RENAME COLUMN id TO user_id;

@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS contact_transactions (
     currency TEXT,
     amount FLOAT,
     created TIMESTAMP(0),
-    status TEXT DEFAULT 'pending'
+    status TEXT DEFAULT 'pending',
+    last_notified TIMESTAMP(0) DEFAULT now()
 );
 """.strip()
 

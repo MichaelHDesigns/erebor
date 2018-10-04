@@ -457,7 +457,7 @@ class TestTransactions(TestErebor):
         assert response.json.keys() == {'success', 'transaction_uid'}
 
         # Retrieve the contact transaction from the DB to get its UID that
-        # would normally be in the push notification
+        # would normally be in the transactions screen
         with psycopg2.connect(**app.db) as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute('SELECT * FROM contact_transactions WHERE id = 1')
@@ -778,3 +778,66 @@ class TestTransactions(TestErebor):
             assert status_data[key] == other_test_user_data[key]
         assert status_data['address'] == '3btCaddress'
         assert status_data['currency'] == 'BTC'
+
+    def test_notify_transaction(self):
+        u_data, session_id = new_user(app)
+
+        flexmock(requests).should_receive('get').and_return(
+            flexmock(json=lambda: json.loads(
+                '{"jsonrpc": "2.0", "id": 1,'
+                '"result": "0x37942530c308b7e7",'
+                '"final_balance": 556484529}')))
+
+        # B: User transacts with their contact who has no Hoard account
+        # via email address
+        request, response = app.test_client.post(
+            '/contacts/transaction/',
+            data=json.dumps({'sender': '0xDEADBEEF',
+                             'recipient': 'first_test@example.com',
+                             'amount': 1, 'currency': 'ETH'}),
+            cookies={'session_id': session_id})
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        # Retrieve the contact transaction from the DB to get its UID that
+        # would normally be in the transactions screen
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('SELECT * FROM contact_transactions WHERE id = 1')
+                result = cur.fetchone()
+        trans_uid = result['uid']
+
+        # B: User taps to renotify recipient only to find that they've done
+        # a renotify recently
+        request, response = app.test_client.post(
+            '/contacts/transaction/{}/notify'.format(trans_uid),
+            cookies={'session_id': session_id}
+        )
+        assert response.status == 403
+        assert response.json.keys() == {'errors'}
+
+        # Update the last notified date to be a few days in the past
+        UPDATE_LAST_NOTIFIED = """
+        UPDATE contact_transactions
+        SET last_notified = last_notified - interval '2 days'
+        """.strip()
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(UPDATE_LAST_NOTIFIED)
+
+        # B: User renotifies a recipient of a pending transaction that was last
+        # notified two days ago
+        request, response = app.test_client.post(
+            '/contacts/transaction/{}/notify'.format(trans_uid),
+            cookies={'session_id': session_id}
+        )
+        assert response.status == 200
+        assert response.json.keys() == {'success'}
+
+        # B: User taps to renotify recipient only to find that they've done
+        # a renotify recently
+        request, response = app.test_client.post(
+            '/contacts/transaction/{}/notify'.format(trans_uid),
+            cookies={'session_id': session_id}
+        )
+        assert response.status == 403
+        assert response.json.keys() == {'errors'}

@@ -9,14 +9,16 @@ from . import (email_pattern, e164_pattern,
 # errors
 from . import (UNAUTHORIZED, MISSING_FIELDS, UNSUPPORTED_CURRENCY,
                NEGATIVE_AMOUNT, INSUFFICIENT_BALANCE, NO_PUBLIC_KEY,
-               INVALID_TRANSACTION_UID, USER_NOT_FOUND, USER_NOT_REGISTERED)
+               INVALID_TRANSACTION_UID, USER_NOT_FOUND, USER_NOT_REGISTERED,
+               ALREADY_NOTIFIED)
 # sql
 from . import (REGISTER_ADDRESS_SQL, SELECT_ADDRESS_SQL,
                CREATE_CONTACT_TRANSACTION_SQL, SELECT_EMAIL_AND_FNAME_SQL,
                SELECT_CONTACT_TRANSACTION_DATA,
                UPDATE_TRANSACTION_CONFIRMATION_SQL,
                SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL,
-               SELECT_ALL_CONTACT_TRANSACTIONS, SELECT_RECIPIENT_STATUS_SQL)
+               SELECT_ALL_CONTACT_TRANSACTIONS, SELECT_RECIPIENT_STATUS_SQL,
+               SELECT_CONTACT_TRANSACTION_RENOTIFY)
 
 transactions_bp = Blueprint('transactions')
 supported_currencies = ['ETH', 'BTC', 'BOAR']
@@ -219,6 +221,28 @@ async def recipient_status(request, transaction_uid):
         return error_response([INVALID_TRANSACTION_UID])
     return (response.json(dict(recipient_status)) if recipient_status else
             error_response([USER_NOT_REGISTERED]))
+
+
+@transactions_bp.route('/contacts/transaction/<transaction_uid>/notify',
+                       methods=['POST'])
+@limiter.shared_limit('5 per day',
+                      scope='/contact/transaction/trans_uid/notify')
+@authorized()
+async def renotify(request, transaction_uid):
+    db = request['db']
+    user_id = request['session']['user_id']
+    try:
+        transaction = await db.fetchrow(
+            SELECT_CONTACT_TRANSACTION_RENOTIFY, transaction_uid)
+    except ValueError:
+        return error_response([INVALID_TRANSACTION_UID])
+    if not transaction:
+        return error_response([ALREADY_NOTIFIED])
+    await notify_contact_transaction(
+        dict(transaction), user_id, db)
+    # TODO: Include a push notification here
+    return response.json({
+        'success': ['User has been notified of pending transaction']})
 
 
 @transactions_bp.route('/request_funds/', methods=['POST'])

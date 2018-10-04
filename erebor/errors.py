@@ -49,6 +49,10 @@ RATE_LIMIT_EXCEEDED = {'code': 429, 'message': 'Too many requests.',
 ROUTE_NOT_FOUND = {'code': 404, 'message': 'Route not found', 'status': 404}
 USER_NOT_REGISTERED = {'code': 117, 'message': 'User has not registered yet',
                        'status': 400}
+ALREADY_NOTIFIED = {'code': 118,
+                    'message': 'User recently notified, please wait 24 hours '
+                    'before notifying again.',
+                    'status': 403}
 
 # Blockchain errors
 INSUFFICIENT_BALANCE = {'code': 200, 'message': 'Insufficient balance',

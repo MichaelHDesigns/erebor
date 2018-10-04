@@ -170,9 +170,17 @@ WHERE user_id = $1
 
 SELECT_CONTACT_TRANSACTION_DATA = """
 SELECT  uid::text, recipient, currency, amount, created, status,
-        transaction_type, transaction_hash
+        transaction_type, transaction_hash, last_notified
 FROM contact_transactions
 WHERE uid = $1
+""".strip()
+
+SELECT_CONTACT_TRANSACTION_RENOTIFY = """
+UPDATE contact_transactions
+SET last_notified = now()
+WHERE uid = $1
+AND last_notified + interval '1 day' < now()
+RETURNING *
 """.strip()
 
 SELECT_RECIPIENT_STATUS_SQL = """
