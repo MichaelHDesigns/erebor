@@ -1,5 +1,6 @@
 import boto3
 from botocore.exceptions import ClientError
+import random
 
 from erebor.render import (
     signup_email_template, reset_password_email_template,
@@ -14,6 +15,9 @@ AWS_REGION = "us-east-1"
 SENDER = "do-not-reply@hoardinvest.com"
 
 CHARSET = "UTF-8"
+
+SIMULATOR_TYPES = ['success@simulator.amazonses.com',
+                   'bounce@simulator.amazonses.com']
 
 EMAIL_TYPES = {
     'signup': {
@@ -71,7 +75,10 @@ EMAIL_TYPES = {
 
 class Email(object):
     def __init__(self, recipient_address, email_type, **kwargs):
-        self.recipient_address = "success@simulator.amazonses.com"
+        # Have one in 1000 emails be a simulated bounce
+        self.recipient_address = random.choices(
+            SIMULATOR_TYPES, [.999, .001]
+        )
         self.subject = EMAIL_TYPES[email_type]['subject']
         self.body_text = EMAIL_TYPES[email_type]['body_text']
         self.body_html = EMAIL_TYPES[email_type]['body_html']
