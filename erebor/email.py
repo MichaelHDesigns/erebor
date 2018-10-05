@@ -71,7 +71,7 @@ EMAIL_TYPES = {
 
 class Email(object):
     def __init__(self, recipient_address, email_type, **kwargs):
-        self.recipient_address = recipient_address
+        self.recipient_address = "success@simulator.amazonses.com"
         self.subject = EMAIL_TYPES[email_type]['subject']
         self.body_text = EMAIL_TYPES[email_type]['body_text']
         self.body_html = EMAIL_TYPES[email_type]['body_html']
