@@ -18,6 +18,14 @@ async def post(url, json):
             return await response.json()
 
 
+async def verify(captcha, ip):
+    verify_response = await fetch(
+        "https://www.google.com/recaptcha/api/siteverify"
+        "?secret={}&response={}&remoteip={}".format(
+            os.environ['RECAPTCHA_SECRET'], captcha, ip))
+    return verify_response
+
+
 def send_sms(to_number, body):
     account_sid = os.environ['TWILIO_ACCOUNT_SID']
     auth_token = os.environ['TWILIO_AUTH_TOKEN']

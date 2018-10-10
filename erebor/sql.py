@@ -245,3 +245,34 @@ WHERE activation_key = $1
 AND active = False
 RETURNING email_address, first_name, last_name
 """.strip()
+
+INSERT_VOTE_SQL = """
+WITH coin AS (
+    SELECT symbol, name
+    FROM supported_coins
+    WHERE symbol = UPPER($1)
+)
+INSERT INTO votes (name, symbol, ip)
+SELECT coin.name, coin.symbol, $2
+FROM coin
+""".strip()
+
+SELECT_ALL_VOTES_SQL = """
+SELECT votes.symbol, votes.name, count(votes.name) as votes, s.round_won
+FROM votes, supported_coins as s
+WHERE votes.symbol = s.symbol
+GROUP BY votes.name, votes.symbol, s.round_won
+ORDER BY votes ASC
+""".strip()
+
+SELECT_ALL_VOTES_INTERVAL_SQL = """
+SELECT symbol, name, count(name) as votes FROM votes
+WHERE date > (now() - $1::interval)
+GROUP BY name, symbol
+ORDER BY votes ASC
+"""
+
+SELECT_ALL_SUPPORTED_COINS_SQL = """
+SELECT * FROM supported_coins
+ORDER BY name
+""".strip()

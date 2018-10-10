@@ -69,3 +69,22 @@ CREATE TABLE IF NOT EXISTS public_addresses (
     CONSTRAINT pk_addresses PRIMARY KEY (user_id, currency)
 )
 """.strip()
+
+CREATE_VOTING_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS votes (
+    date TIMESTAMP(0) DEFAULT now(),
+    name TEXT,
+    symbol TEXT,
+    ip TEXT,
+    CONSTRAINT pk_voting PRIMARY KEY (symbol, ip)
+)
+""".strip()
+
+CREATE_SUPPORTED_COINS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS supported_coins (
+    symbol TEXT PRIMARY KEY,
+    name TEXT,
+    cmc_rank INTEGER DEFAULT NULL,
+    round_won INTEGER DEFAULT NULL
+)
+""".strip()

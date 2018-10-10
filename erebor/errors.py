@@ -64,3 +64,19 @@ NO_PUBLIC_KEY = {'code': 203, 'message': 'No public key found for user',
                  'status': 403}
 INVALID_SWAP_SERVICE = {'code': 204, 'message': 'Unsupported swap service',
                         'status': 403}
+
+# Misc Errors
+ALREADY_VOTED = {'code': 300,
+                 'message': 'You have already voted for this coin',
+                 'status': 403}
+INVALID_ARGS = {'code': 301,
+                'message': 'Invalid parameter arguments',
+                'status': 404}
+CURRENCY_ALREADY_SUPPORTED = {'code': 302,
+                              'message': 'Currency already supported',
+                              'status': 403}
+VOTING_SUSPENDED = {'code': 303,
+                    'message': '{} temporarily suspended',
+                    'status': 403}
+CAPTCHA_FAILED = {'code': 304, 'message': 'Captcha failed',
+                  'status': 403}
