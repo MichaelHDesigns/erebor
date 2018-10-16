@@ -12,14 +12,15 @@ from sanic import Blueprint, response
 
 from . import (username_pattern, email_pattern, e164_pattern,
                error_response, Email, limiter, authorized, send_sms,
-               password_template)
+               password_template, verify, uuid_pattern, hoard_pattern,
+               admin_pattern)
 
 # errors
 from . import (INVALID_USERNAME, INVALID_EMAIL,
                INVALID_PHONE_NUMBER, MISSING_FIELDS, EMAIL_ADDRESS_EXISTS,
                USERNAME_EXISTS, GENERIC_USER, UNAUTHORIZED, EXPIRED_TOKEN,
                INVALID_CREDENTIALS, SMS_VERIFICATION_FAILED, PASSWORD_TARGET,
-               PASSWORD_CHECK)
+               PASSWORD_CHECK, CAPTCHA_FAILED)
 # sql
 from . import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,
                ACTIVATE_USER_SQL, PASSWORD_ACCESS_SQL, SET_2FA_CODE_SQL,
@@ -28,7 +29,8 @@ from . import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,
                SELECT_CONTACT_TRANSACTIONS, CHANGE_PASSWORD_SQL,
                RESET_TOKEN_CREATION_SQL, SELECT_RESET_TOKEN_SQL,
                EXPIRE_RESET_TOKEN_SQL, SELECT_USERNAME_FNAME_FROM_EMAIL_SQL,
-               SELECT_EMAIL_PREFS_SQL, UPDATE_EMAIL_PREFS_SQL)
+               SELECT_EMAIL_PREFS_SQL, UPDATE_EMAIL_PREFS_SQL,
+               PRE_REGISTER_USER_SQL, ACTIVATE_PRE_REG_SQL)
 
 
 users_bp = Blueprint('users')
@@ -117,6 +119,86 @@ async def users(request):
     resp.cookies['session_id']['domain'] = '.hoardinvest.com'
     resp.cookies['session_id']['httponly'] = True
     return resp
+
+
+@users_bp.route('/pre_register', methods=['POST'])
+async def pre_register(request):
+    if request.json.keys() != {'email_address', 'username', 'captcha'}:
+        return error_response([MISSING_FIELDS])
+    captcha = request.json['captcha']
+    verify_response = await verify(captcha, request.remote_addr,
+                                   'PRE_REG_RECAPTCHA_SECRET')
+    verify_success = verify_response.get('success')
+    verify_score = verify_response.get('score')
+    if not verify_success:
+        return error_response([CAPTCHA_FAILED])
+    if verify_score and verify_score < 0.5:
+        return error_response([CAPTCHA_FAILED])
+    db = request.app.pg
+    email_address = request.json['email_address']
+    username = request.json['username']
+    if (username_pattern.search(username) or
+       len(username) > 18 or len(username) < 3 or
+       hoard_pattern.match(username) or admin_pattern.match(username)):
+        return error_response([INVALID_USERNAME])
+    if not email_pattern.match(email_address):
+        return error_response([INVALID_EMAIL])
+    try:
+        new_user = await db.fetchrow(
+            PRE_REGISTER_USER_SQL, email_address, username)
+    except UniqueViolationError as uv_error:
+        if uv_error.constraint_name == 'pre_register_email_address_key':
+            return error_response([EMAIL_ADDRESS_EXISTS])
+        elif uv_error.constraint_name == 'pre_register_username_key':
+            return error_response([USERNAME_EXISTS])
+        else:
+            return error_response([GENERIC_USER])
+    except Exception as e:
+        logging.info('error creating user {}:{}'.format(email_address, e))
+        return error_response([GENERIC_USER])
+    if new_user is None:
+        return error_response([INVALID_USERNAME])
+    # remove sensitive information
+    new_user = {
+        k: str(v) if k == 'uid' or k == 'activation_key'
+        else v for k, v in new_user.items()
+        if k not in {'id', 'uid', 'active'}
+    }
+    activation_key = new_user.pop('activation_key')
+    activation_url = ("https://" + str(os.getenv("INSTANCE_HOST")) +
+                      '/pre_register/{}'.format(activation_key))
+    # TODO: Add a specific pre-registration email w/ copy about how users will
+    # be able to complete their info at a later date
+    pre_register_email = Email(
+        email_address,
+        'pre_register',
+        activation_url=activation_url
+    )
+    pre_register_email.send()
+    resp = response.json(new_user, status=201)
+    return resp
+
+
+@users_bp.route('/pre_register/<activation_key>', methods=['GET'])
+@limiter.shared_limit('50 per minute', scope='activate/activation_key')
+async def activate_pre_reg(request, activation_key):
+    if not uuid_pattern.match(activation_key):
+        return error_response([EXPIRED_TOKEN])
+    db = request.app.pg
+    try:
+        user_info = await db.fetchrow(ACTIVATE_PRE_REG_SQL, activation_key)
+    except ValueError:
+        return error_response([EXPIRED_TOKEN])
+    if user_info:
+        activated_email = Email(
+            user_info['email_address'],
+            'activated_pre_reg',
+            username=user_info['username']
+        )
+        activated_email.send()
+        return response.redirect(
+            '/result/?action=pre_reg_activate&success=true')
+    return error_response([EXPIRED_TOKEN])
 
 
 @users_bp.route('/users/<user_uid>', methods=['GET', 'PUT'])

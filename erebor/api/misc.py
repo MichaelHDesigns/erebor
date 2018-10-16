@@ -82,7 +82,8 @@ async def vote(request):
         if request.json.keys() != {'symbol', 'captcha'}:
             return error_response([MISSING_FIELDS])
         captcha = request.json['captcha']
-        verify_response = await verify(captcha, request.remote_addr)
+        verify_response = await verify(captcha, request.remote_addr,
+                                       'VOTE_RECAPTCHA_SECRET')
         verify_success = verify_response.get('success')
         verify_score = verify_response.get('score')
         if not verify_success:

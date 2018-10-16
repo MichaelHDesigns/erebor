@@ -78,5 +78,6 @@ CURRENCY_ALREADY_SUPPORTED = {'code': 302,
 VOTING_SUSPENDED = {'code': 303,
                     'message': '{} temporarily suspended',
                     'status': 403}
-CAPTCHA_FAILED = {'code': 304, 'message': 'Captcha failed',
+CAPTCHA_FAILED = {'code': 304,
+                  'message': 'Captcha failed: Please try submitting again',
                   'status': 403}

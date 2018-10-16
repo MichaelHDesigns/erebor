@@ -18,11 +18,12 @@ async def post(url, json):
             return await response.json()
 
 
-async def verify(captcha, ip):
+async def verify(captcha, ip, secret):
+    secret = os.environ[secret]
     verify_response = await fetch(
         "https://www.google.com/recaptcha/api/siteverify"
         "?secret={}&response={}&remoteip={}".format(
-            os.environ['RECAPTCHA_SECRET'], captcha, ip))
+            secret, captcha, ip))
     return verify_response
 
 

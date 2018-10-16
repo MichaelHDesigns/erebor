@@ -82,6 +82,15 @@ FROM x
 RETURNING *
 """.strip()
 
+PRE_REGISTER_USER_SQL = """
+INSERT INTO pre_register (email_address, username)
+SELECT LOWER($1), LOWER($2)
+WHERE NOT EXISTS (
+    SELECT * FROM blacklist WHERE username = LOWER($2)
+)
+RETURNING *
+""".strip()
+
 CHANGE_PASSWORD_SQL = """
 WITH x AS (
   SELECT $1::text as password,
@@ -244,6 +253,14 @@ SET active = True
 WHERE activation_key = $1
 AND active = False
 RETURNING email_address, first_name, last_name
+""".strip()
+
+ACTIVATE_PRE_REG_SQL = """
+UPDATE pre_register
+SET active = True
+WHERE activation_key = $1
+AND active = False
+RETURNING email_address, username
 """.strip()
 
 INSERT_VOTE_SQL = """

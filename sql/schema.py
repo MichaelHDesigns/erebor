@@ -20,6 +20,18 @@ CREATE TABLE IF NOT EXISTS users (
 );
 """.strip()
 
+CREATE_PRE_REGISTER_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS pre_register (
+    id SERIAL PRIMARY KEY,
+    email_address TEXT UNIQUE,
+    username TEXT UNIQUE,
+    uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
+    active BOOL DEFAULT False,
+    activation_key UUID DEFAULT uuid_generate_v4 () UNIQUE,
+    register_date DATE DEFAULT now()
+);
+""".strip()
+
 CREATE_IV_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS identity_verifications (
     id SERIAL PRIMARY KEY,
@@ -86,5 +98,11 @@ CREATE TABLE IF NOT EXISTS supported_coins (
     name TEXT,
     cmc_rank INTEGER DEFAULT NULL,
     round_won INTEGER DEFAULT NULL
+)
+""".strip()
+
+CREATE_BLACKLIST_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS blacklist (
+    username TEXT
 )
 """.strip()

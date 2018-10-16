@@ -40,9 +40,14 @@ from erebor.sql import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,  # no
                      SELECT_CONTACT_TRANSACTION_RENOTIFY,
                      SELECT_RECIPIENT_STATUS_SQL, INSERT_VOTE_SQL,
                      SELECT_ALL_VOTES_SQL, SELECT_ALL_SUPPORTED_COINS_SQL,
-                     SELECT_ALL_VOTES_INTERVAL_SQL)
+                     SELECT_ALL_VOTES_INTERVAL_SQL, PRE_REGISTER_USER_SQL,
+                     ACTIVATE_PRE_REG_SQL)
 
 
 email_pattern = re.compile('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$')
 username_pattern = re.compile('[^\w]')
+hoard_pattern = re.compile('.*hoard.*', flags=re.IGNORECASE)
+admin_pattern = re.compile('.*admin.*', flags=re.IGNORECASE)
 e164_pattern = re.compile('^\+?[1-9]\d{1,14}$')
+uuid_pattern = re.compile(
+    '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')

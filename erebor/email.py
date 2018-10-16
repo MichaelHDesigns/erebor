@@ -5,7 +5,8 @@ from erebor.render import (
     signup_email_template, reset_password_email_template,
     contact_transaction_email_template, pending_transactions_email,
     request_funds_email_template, activated_email_template,
-    forgot_username_template
+    forgot_username_template, pre_register_email_template,
+    activate_pre_register_email_template
     )
 
 
@@ -22,6 +23,14 @@ EMAIL_TYPES = {
                       " has been created!\r\nPlease use the following url to"
                       " activate and confirm your account: {activation_url}"),
         'body_html': signup_email_template
+    },
+    'pre_register': {
+        'subject': "Welcome to Hoard's pre-registration!",
+        'body_text': ("Hello - welcome to Hoard's pre-registration process."
+                      "\r\nYour username will only be reserved if you "
+                      "click the activation link below within 72 hours."
+                      "\r\n{activation_url}"),
+        'body_html': pre_register_email_template
     },
     'password_reset': {
         'subject': "Hoard - Reset Password",
@@ -59,6 +68,13 @@ EMAIL_TYPES = {
                       "Hello {full_name} - welcome to Hoard! "
                       "Your account is now active!"),
         'body_html': activated_email_template
+    },
+    'activated_pre_reg': {
+        'subject': "Your username is now reserved!",
+        'body_text': ("Congratulations, your username {username} is now"
+                      " reserved.\r\nJoin the party in telegram at "
+                      "https://t.me/hoardinvest"),
+        'body_html': activate_pre_register_email_template
     },
     'forgot_username': {
         'subject': "Hoard - Forgot Username",

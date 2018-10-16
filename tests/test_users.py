@@ -1,8 +1,9 @@
 import json
 
 import psycopg2
+import flexmock
 
-from . import test_user_data, new_user, app, TestErebor
+from . import test_user_data, new_user, app, TestErebor, api
 
 
 class TestUsers(TestErebor):
@@ -618,3 +619,136 @@ class TestUsers(TestErebor):
         data = response.json
         assert data.keys() == {'success', 'user_uid'}
         assert len(data['user_uid']) == 36
+
+    def test_pre_register(self):
+        async def mock_verify_fun():
+            return {'success': True, 'score': 0.6}
+        flexmock(api.users).should_receive(
+            'verify').and_return(
+                mock_verify_fun()).and_return(
+                mock_verify_fun()).and_return(
+                mock_verify_fun()).and_return(
+                mock_verify_fun()).and_return(
+                mock_verify_fun())
+
+        with open('./tests/blacklist.json') as blacklist_file:
+            blacklist_data = json.load(blacklist_file)
+            INSERT_BLACKLIST_SQL = """
+            INSERT INTO blacklist (username)
+            VALUES
+            """.strip()
+            args = ", ".join('(\'{}\')'.format(
+                username) for username in blacklist_data)
+            INSERT_BLACKLIST_SQL += args
+
+            with psycopg2.connect(**app.db) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(INSERT_BLACKLIST_SQL)
+
+        user = {
+            'username': 'co00l_username',
+            'email_address': 'an_email@example.com',
+            'captcha': 'abcdefghijklmnop'
+        }
+
+        request, response = app.test_client.post(
+            '/pre_register',
+            data=json.dumps(user)
+        )
+        assert response.status == 201
+        assert response.json.keys() == {'email_address', 'username',
+                                        'register_date'}
+
+        # Connect to the DB to retrieve the user's activation key
+        SELECT_ACTIVATION_KEY = """
+        SELECT activation_key, active
+        FROM pre_register
+        WHERE username = 'co00l_username'
+        """.strip()
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(SELECT_ACTIVATION_KEY)
+                result = cur.fetchone()
+        activation_key = result[0]
+        active = result[1]
+
+        assert active is False
+
+        # B: User activates their account via the activation link
+        request, response = app.test_client.get(
+            '/pre_register/{}'.format(activation_key))
+        assert response.status == 200
+
+        # Connect to the DB to verify active is now True
+        SELECT_ACTIVE_STATUS = """
+        SELECT active
+        FROM pre_register
+        WHERE username = 'co00l_username'
+        """.strip()
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(SELECT_ACTIVE_STATUS)
+                result = cur.fetchone()
+        active = result[0]
+
+        assert active is True
+
+        # B: User clicks the link and sees an expired activation key
+        request, response = app.test_client.get(
+            '/activate/{}'.format(activation_key),
+            data=json.dumps(test_user_data))
+        e_data = response.json
+        assert e_data == {'errors': [
+            {'code': 108, 'message': 'Token is either invalid or expired'}]}
+
+        request, response = app.test_client.post(
+            '/pre_register',
+            data=json.dumps(user)
+        )
+        assert response.status == 403
+
+        # B: User attempts to register a username on the blacklist
+        user = {
+            'username': '404',
+            'email_address': 'another_email@example.com',
+            'captcha': 'abcdefghijklmnop'
+        }
+
+        request, response = app.test_client.post(
+            '/pre_register',
+            data=json.dumps(user)
+        )
+        assert response.status == 400
+        assert response.json == {
+            'errors': [{'code': 109, 'message': 'Invalid username'}]}
+
+        # B: User attempts to register a name with 'admin' or 'hoard' in it
+        user = {
+            'username': 'hoard_cool_guy',
+            'email_address': 'another_email@example.com',
+            'captcha': 'abcdefghijklmnop'
+        }
+
+        request, response = app.test_client.post(
+            '/pre_register',
+            data=json.dumps(user)
+        )
+        assert response.status == 400
+        assert response.json == {
+            'errors': [{'code': 109, 'message': 'Invalid username'}]}
+
+        user = {
+            'username': 'official_administrator',
+            'email_address': 'another_email@example.com',
+            'captcha': 'abcdefghijklmnop'
+        }
+
+        request, response = app.test_client.post(
+            '/pre_register',
+            data=json.dumps(user)
+        )
+        assert response.status == 400
+        assert response.json == {
+            'errors': [{'code': 109, 'message': 'Invalid username'}]}

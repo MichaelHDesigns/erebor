@@ -24,6 +24,12 @@ request_funds_email_template = jinja_env.get_template(
 forgot_username_template = jinja_env.get_template(
     'emails/forgot_username_email.html'
 )
+pre_register_email_template = jinja_env.get_template(
+    'emails/pre_register_email.html'
+)
+activate_pre_register_email_template = jinja_env.get_template(
+    'emails/activate_pre_register_email.html'
+)
 
 RESULT_ACTIONS = {
     'unsubscribe': {
@@ -38,6 +44,10 @@ RESULT_ACTIONS = {
     'activate': {
         'true': ('Your account is now active!\n'
                  'You can now log in with your credentials'),
+        'false': ''
+    },
+    'pre_reg_activate': {
+        'true': ('Your username is now reserved!\n'),
         'false': ''
     }
 }
