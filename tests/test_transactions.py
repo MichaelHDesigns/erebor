@@ -10,6 +10,9 @@ from . import new_user, app, TestErebor, api, test_user_data, blockchain
 
 
 class TestTransactions(TestErebor):
+    flexmock(api.transactions).should_receive(
+        'send_push_notification').and_return()
+
     def test_register_address(self):
         u_data, session_id = new_user(app)
 
@@ -544,6 +547,27 @@ class TestTransactions(TestErebor):
     def test_contact_transaction_confirmation(self):
         u_data, session_id = new_user(app)
 
+        async def mock_check_channel():
+            return {'ok': True}
+        flexmock(api.users).should_receive('check_channel').and_return(
+            mock_check_channel())
+        flexmock(api.transactions).should_receive(
+            'send_push_notification').and_return({'ok': True})
+
+        # B: User logs into Hoard from their Android device in order to
+        # receive a push notification
+        request, response = app.test_client.post(
+            '/login', data=json.dumps({
+                'username_or_email': test_user_data['username'],
+                'password': test_user_data['password'],
+                'device_info': {
+                    'channel': 'c00l_ch4nn3l',
+                    'device_type': 'android'
+                }
+            })
+        )
+        assert response.status == 200
+
         flexmock(requests).should_receive('get').and_return(
             flexmock(json=lambda: json.loads(
                 '{"jsonrpc": "2.0", "id": 1,'
@@ -615,8 +639,51 @@ class TestTransactions(TestErebor):
         status = result['status']
         assert status == 'denied'
 
+        other_new_user = test_user_data.copy()
+        other_new_user['email_address'] = 'new_one@example.com'
+        other_new_user['username'] = 'new_one'
+        other_new_user['phone_number'] = '+11096667777'
+
+        request, response = app.test_client.post(
+            '/users', data=json.dumps(other_new_user)
+        )
+        assert response.status == 201
+        cookies = response.cookies
+        other_session_id = cookies['session_id'].value
+
+        request, response = app.test_client.post(
+            '/request_funds/',
+            cookies={'session_id': session_id},
+            data=json.dumps(
+                {'recipient': 'new_one',
+                 'email_address': test_user_data['email_address'],
+                 'currency': 'BTC', 'amount': 9001}))
+        assert response.json.keys() == {'success', 'transaction_uid'}
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM contact_transactions"
+                            " WHERE transaction_type = 'request'")
+                result = cur.fetchone()
+        trans_uid = result['uid']
+        status = result['status']
+
+        request, response = app.test_client.post(
+            '/contacts/transaction_confirmation/{}'.format(trans_uid),
+            cookies={'session_id': other_session_id},
+            data=json.dumps({'confirmed': False, 'transaction_hash': None})
+        )
+        assert response.status == 200
+
     def test_request_funds(self):
         u_data, session_id = new_user(app)
+        flexmock(api.transactions).should_receive(
+            'send_push_notification').and_return()
+
+        async def mock_check_channel():
+            return {'ok': True}
+        flexmock(api.users).should_receive('check_channel').and_return(
+            mock_check_channel())
 
         # B: User requests funds from someone who is not a Hoard user using
         # their email address
@@ -646,6 +713,10 @@ class TestTransactions(TestErebor):
         other_new_user['email_address'] = 'recipient@test.com'
         other_new_user['username'] = 'other_test_user'
         other_new_user['phone_number'] = '+12223334444'
+        other_new_user['device_info'] = {
+            'device_type': 'android',
+            'channel': 'andr01d_ch4nn3l'
+        }
 
         request, response = app.test_client.post(
             '/users/', data=json.dumps(other_new_user))

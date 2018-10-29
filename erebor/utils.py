@@ -6,15 +6,15 @@ from zenpy.lib.api_objects import Ticket
 from twilio.rest import Client
 
 
-async def fetch(url):
+async def fetch(url, headers=None):
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get(url, headers=headers) as response:
             return await response.json()
 
 
-async def post(url, json):
+async def post(url, json, headers=None):
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=json) as response:
+        async with session.post(url, json=json, headers=headers) as response:
             return await response.json()
 
 

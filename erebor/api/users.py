@@ -13,14 +13,15 @@ from sanic import Blueprint, response
 from . import (username_pattern, email_pattern, e164_pattern,
                error_response, Email, limiter, authorized, send_sms,
                password_template, verify, uuid_pattern, hoard_pattern,
-               admin_pattern)
+               admin_pattern, check_channel)
 
 # errors
 from . import (INVALID_USERNAME, INVALID_EMAIL,
                INVALID_PHONE_NUMBER, MISSING_FIELDS, EMAIL_ADDRESS_EXISTS,
                USERNAME_EXISTS, GENERIC_USER, UNAUTHORIZED, EXPIRED_TOKEN,
                INVALID_CREDENTIALS, SMS_VERIFICATION_FAILED, PASSWORD_TARGET,
-               PASSWORD_CHECK, CAPTCHA_FAILED)
+               PASSWORD_CHECK, CAPTCHA_FAILED, UNSUPPORTED_DEVICE,
+               DEVICE_EXISTS, DEVICE_NOT_FOUND)
 # sql
 from . import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,
                ACTIVATE_USER_SQL, PASSWORD_ACCESS_SQL, SET_2FA_CODE_SQL,
@@ -30,7 +31,8 @@ from . import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,
                RESET_TOKEN_CREATION_SQL, SELECT_RESET_TOKEN_SQL,
                EXPIRE_RESET_TOKEN_SQL, SELECT_USERNAME_FNAME_FROM_EMAIL_SQL,
                SELECT_EMAIL_PREFS_SQL, UPDATE_EMAIL_PREFS_SQL,
-               PRE_REGISTER_USER_SQL, ACTIVATE_PRE_REG_SQL)
+               PRE_REGISTER_USER_SQL, ACTIVATE_PRE_REG_SQL,
+               REGISTER_DEVICE_SQL, GET_SESSIONS_SQL, DESTROY_SESSIONS_SQL)
 
 
 users_bp = Blueprint('users')
@@ -60,9 +62,24 @@ async def notify_contact_on_signup(to_email_address, phone_number, db):
 
 @users_bp.route('/users', methods=['POST'])
 async def users(request):
-    if request.json.keys() != {'password', 'first_name', 'last_name',
-                               'email_address', 'username', 'phone_number'}:
+    if not (all([
+            field in request.json.keys() for field in [
+            'password', 'first_name', 'last_name', 'email_address',
+            'username', 'phone_number']])):
         return error_response([MISSING_FIELDS])
+    device_info = request.json.get('device_info')
+    if device_info is None:
+        channel = '0'
+        device_type = 'api'
+    elif not (type(device_info) is dict and
+              device_info.keys() == {'device_type', 'channel'}):
+        return error_response([MISSING_FIELDS])
+    else:
+        channel = device_info['channel']
+        device_type = device_info['device_type']
+        channel_exists = await check_channel(channel)
+        if not channel_exists['ok']:
+            return error_response([DEVICE_NOT_FOUND])
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
     db = request.app.pg
     first_name = request.json['first_name']
@@ -82,7 +99,8 @@ async def users(request):
     try:
         new_user = await db.fetchrow(
             CREATE_USER_SQL, password, first_name,
-            last_name, email_address, username, phone_number, session_id)
+            last_name, email_address, username, phone_number, session_id,
+            request.remote_addr, device_type, channel)
     except UniqueViolationError as uv_error:
         if uv_error.constraint_name == 'users_email_address_key':
             return error_response([EMAIL_ADDRESS_EXISTS])
@@ -100,7 +118,6 @@ async def users(request):
         if k not in {'password', 'salt', 'id',
                      'sms_verification', 'external_id'}
     }
-    session_id = new_user.pop('session_id')
     activation_key = new_user.pop('activation_key')
     activation_url = ("https://" + str(os.getenv("INSTANCE_HOST")) +
                       '/activate/{}'.format(activation_key))
@@ -229,6 +246,29 @@ async def user(request, user_uid):
         return response.HTTPResponse(body=None, status=200)
 
 
+@users_bp.route('/users/<user_uid>/register_device', methods=['POST'])
+@authorized()
+async def register_channel(request, user_uid):
+    if user_uid != request['session']['user_uid']:
+        return error_response([UNAUTHORIZED])
+    registration = request.json
+    if registration.keys() != {'device_type', 'channel'}:
+        return error_response([MISSING_FIELDS])
+    device_type = registration['device_type']
+    if device_type not in ['ios', 'android']:
+        return error_response([UNSUPPORTED_DEVICE])
+    channel = registration['channel']
+    if request['session']['channel'] == channel:
+        return error_response([DEVICE_EXISTS])
+    channel_exists = check_channel(channel)['ok']
+    if not channel_exists:
+        return error_response([DEVICE_NOT_FOUND])
+    user_id = request['session']['user_id']
+    await request['db'].execute(REGISTER_DEVICE_SQL, user_id, user_uid,
+                                device_type, channel)
+    return response.json({'success': ['Device registered']})
+
+
 @users_bp.route('/activate/<activation_key>', methods=['GET'])
 @limiter.shared_limit('50 per minute', scope='activate/activation_key')
 async def activate_account(request, activation_key):
@@ -255,10 +295,24 @@ async def activate_account(request, activation_key):
 
 @users_bp.route('/login', methods=['POST'])
 async def login(request):
-    if request.json.keys() != {'username_or_email', 'password'}:
+    if not all([field in request.json.keys()
+               for field in ['username_or_email', 'password']]):
         return error_response([MISSING_FIELDS])
     user = request.json['username_or_email']
     password = request.json['password']
+    device_info = request.json.get('device_info')
+    if device_info is None:
+        channel = '0'
+        device_type = 'api'
+    elif not (type(device_info) is dict and
+              device_info.keys() == {'device_type', 'channel'}):
+        return error_response([MISSING_FIELDS])
+    else:
+        channel = device_info['channel']
+        device_type = device_info['device_type']
+        channel_exists = await check_channel(channel)
+        if not channel_exists['ok']:
+            return error_response([DEVICE_NOT_FOUND])
     db = request.app.pg
     login = await db.fetchrow(PASSWORD_ACCESS_SQL, password, user)
     if login:
@@ -276,7 +330,9 @@ async def login(request):
             else:
                 session_id = hmac.new(uuid4().bytes,
                                       digestmod=sha1).hexdigest()
-                await db.execute(LOGIN_SQL, session_id, user_id)
+                await db.execute(
+                    LOGIN_SQL, session_id, user_id, channel, user_uid,
+                    device_type, request.remote_addr)
                 resp = response.json({'success': ['Login successful'],
                                       'user_uid': user_uid},
                                      status=200)
@@ -290,8 +346,22 @@ async def login(request):
 
 @users_bp.route('/2fa/sms_login', methods=['POST'])
 async def two_factor_login(request):
-    if request.json.keys() != {'sms_verification', 'username_or_email'}:
+    if not all([field in request.json.keys()
+               for field in ['username_or_email', 'sms_verification']]):
         return error_response([MISSING_FIELDS])
+    device_info = request.json.get('device_info')
+    if device_info is None:
+        channel = '0'
+        device_type = 'api'
+    elif not (type(device_info) is dict and
+              device_info.keys() == {'device_type', 'channel'}):
+        return error_response([MISSING_FIELDS])
+    else:
+        channel = device_info['channel']
+        device_type = device_info['device_type']
+        channel_exists = check_channel(channel)['ok']
+        if not channel_exists:
+            return error_response([DEVICE_NOT_FOUND])
     db = request.app.pg
     sms_verification = request.json['sms_verification']
     user = request.json['username_or_email']
@@ -302,8 +372,9 @@ async def two_factor_login(request):
     user_id = user_ids['id']
     user_uid = user_ids['uid']
     session_id = hmac.new(uuid4().bytes, digestmod=sha1).hexdigest()
-    await db.execute(LOGIN_SQL,
-                     session_id, user_id)
+    await db.execute(
+        LOGIN_SQL, session_id, user_id, channel, user_uid,
+        device_type, request.remote_addr)
     resp = response.json({'success': ['Login successful'],
                           'user_uid': user_uid}, status=200)
     resp.cookies['session_id'] = session_id
@@ -319,7 +390,7 @@ async def two_factor_login(request):
 async def logout(request):
     await request['db'].execute(
         LOGOUT_SQL,
-        request['session']['user_id'])
+        request['session']['user_id'], request['session']['channel'])
     return response.json({'success': ['Your session has been invalidated']})
 
 
@@ -449,3 +520,24 @@ async def email_preferences(request):
         return response.json(
             {'success': ['Your email preferences have been updated']}
         )
+
+
+@users_bp.route('/users/<user_uid>/destroy_sessions', methods=['POST'])
+@authorized()
+async def destroy_sessions(request, user_uid):
+    if user_uid != request['session']['user_uid']:
+        return error_response([UNAUTHORIZED])
+    await request['db'].execute(DESTROY_SESSIONS_SQL, request[
+        'session']['user_id'])
+    return response.json({'success': [
+        'Your sessions across all devices have been invalidated']})
+
+
+@users_bp.route('/users/<user_uid>/get_sessions', methods=['GET'])
+@authorized()
+async def get_sessions(request, user_uid):
+    if user_uid != request['session']['user_uid']:
+        return error_response([UNAUTHORIZED])
+    sessions = await request['db'].fetch(GET_SESSIONS_SQL, request[
+        'session']['user_id'])
+    return response.json({'sessions': [dict(session) for session in sessions]})

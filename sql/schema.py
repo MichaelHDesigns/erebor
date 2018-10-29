@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
     receive_emails_enabled BOOL DEFAULT True,
     phone_number TEXT UNIQUE,
     uid UUID DEFAULT uuid_generate_v4 () UNIQUE,
-    session_id TEXT,
     external_id TEXT,
     sms_verification TEXT DEFAULT Null,
     sms_2fa_enabled BOOL DEFAULT False,
@@ -104,5 +103,25 @@ CREATE TABLE IF NOT EXISTS supported_coins (
 CREATE_BLACKLIST_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS blacklist (
     username TEXT
+)""".strip()
+
+CREATE_DEVICES_ENUM_SQL = """
+CREATE TYPE e_device_type AS ENUM (
+    'ios',
+    'android',
+    'api'
+)
+""".strip()
+
+CREATE_DEVICES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS devices (
+    user_id INTEGER REFERENCES users(id),
+    user_uid UUID REFERENCES users(uid),
+    session_id TEXT default Null,
+    device_type e_device_type,
+    channel TEXT,
+    ip TEXT,
+    date TIMESTAMP(0),
+    CONSTRAINT pk_channel_user_id PRIMARY KEY (user_id, channel)
 )
 """.strip()

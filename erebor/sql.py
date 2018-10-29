@@ -73,13 +73,22 @@ CREATE_USER_SQL = """
 WITH x AS (
   SELECT $1::text as password,
     gen_salt('bf')::text AS salt
-)
+),
+user_ins AS (
 INSERT INTO users (password, salt, first_name, last_name, email_address,
-                   username, phone_number, session_id, register_date)
+                   username, phone_number, register_date)
 SELECT crypt(x.password, x.salt), x.salt, $2, $3, LOWER($4), LOWER($5), $6,
-       $7, now()
+       now()
 FROM x
 RETURNING *
+),
+device_ins AS (
+INSERT INTO devices (user_id, user_uid, session_id, ip, device_type, channel,
+                     date)
+SELECT user_ins.id, user_ins.uid, $7, $8, $9, $10, CURRENT_TIMESTAMP
+FROM user_ins
+)
+SELECT * FROM user_ins
 """.strip()
 
 PRE_REGISTER_USER_SQL = """
@@ -103,21 +112,30 @@ WHERE id = $2
 """.strip()
 
 USER_ID_SQL = """
-SELECT id, uid::text
-FROM users
+SELECT user_id, user_uid::text, channel
+FROM devices
 WHERE session_id = $1
 """.strip()
 
 LOGOUT_SQL = """
-UPDATE users
+UPDATE devices
 SET session_id = NULL
-WHERE id = $1
+WHERE user_id = $1
+AND channel = $2
 """.strip()
 
 LOGIN_SQL = """
-UPDATE users
-SET session_id = $1
-WHERE id = $2
+WITH device_upsert AS (
+    UPDATE devices
+    SET session_id = $1, date = now()
+    WHERE user_id = $2
+    AND channel = $3
+    RETURNING *
+)
+INSERT INTO devices (user_id, user_uid, device_type, channel,
+                     session_id, ip, date)
+SELECT $2, $4, $5, $3, $1, $6, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT * FROM device_upsert)
 """.strip()
 
 SET_2FA_CODE_SQL = """
@@ -209,6 +227,7 @@ UPDATE_TRANSACTION_CONFIRMATION_SQL = """
 UPDATE contact_transactions
 SET status = $1, transaction_hash = $2
 WHERE uid = $3
+RETURNING *
 """.strip()
 
 REGISTER_ADDRESS_SQL = """
@@ -292,4 +311,38 @@ ORDER BY votes ASC
 SELECT_ALL_SUPPORTED_COINS_SQL = """
 SELECT * FROM supported_coins
 ORDER BY name
+""".strip()
+
+REGISTER_DEVICE_SQL = """
+INSERT INTO devices (user_id, user_uid, device_type, channel)
+VALUES ($1, $2, $3, $4)
+""".strip()
+
+SELECT_DEVICE_BY_EMAIL_SQL = """
+SELECT devices.device_type, devices.channel, users.email_address
+FROM devices, users
+WHERE users.email_address = $1
+AND users.id = devices.user_id
+AND devices.device_type != 'api'
+AND devices.session_id IS NOT NULL
+""".strip()
+
+SELECT_DEVICE_BY_USER_ID_SQL = """
+SELECT devices.device_type, devices.channel
+FROM devices
+WHERE user_id = $1
+AND device_type != 'api'
+AND session_id IS NOT NULL
+""".strip()
+
+GET_SESSIONS_SQL = """
+SELECT device_type, date, ip
+FROM devices
+WHERE user_id = $1
+""".strip()
+
+DESTROY_SESSIONS_SQL = """
+UPDATE devices
+SET session_id = NULL
+WHERE user_id = $1
 """.strip()

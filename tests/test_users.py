@@ -2,6 +2,7 @@ import json
 
 import psycopg2
 import flexmock
+from psycopg2.extras import RealDictCursor
 
 from . import test_user_data, new_user, app, TestErebor, api
 
@@ -227,10 +228,30 @@ class TestUsers(TestErebor):
 
     def test_login(self):
         u_data, session_id = new_user(app)
+
+        async def mock_check_channel():
+            return {'ok': True}
+        flexmock(api.users).should_receive('check_channel').and_return(
+            mock_check_channel()).and_return(
+            mock_check_channel())
         request, response = app.test_client.get(
             '/users/{}'.format(u_data['uid']),
             cookies={'session_id': session_id})
         assert response.status == 200
+
+        # Show that the default device is an unknown device with an empty
+        # channel
+        CHECK_SESSION_SQL = """
+        SELECT * FROM devices
+        WHERE user_id = 1
+        """.strip()
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(CHECK_SESSION_SQL)
+                devices = cur.fetchone()
+        assert devices['channel'] == '0'
+        assert devices['device_type'] == 'api'
+        assert devices['session_id'] == session_id
 
         # B: User logs in with their email address
         request, response = app.test_client.post(
@@ -247,6 +268,19 @@ class TestUsers(TestErebor):
 
         new_session_id = new_cookies['session_id'].value
         assert new_session_id != session_id
+
+        # B: User logs in with their username and a valid ios device
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({
+                'username_or_email': test_user_data['username'],
+                'password': test_user_data['password'],
+                'device_info': {
+                    'device_type': 'ios',
+                    'channel': 'c76ff18e-9cb9-4c19-b9af-a39cae6848EE'
+                }}))
+        session_from_username = response.cookies['session_id'].value
+        assert session_from_username != new_session_id
 
         # Verify old api key is invalid
         request, response = app.test_client.get(
@@ -279,6 +313,43 @@ class TestUsers(TestErebor):
         assert response.status == 403
 
         # Key from username login is currently valid
+        request, response = app.test_client.get(
+            '/users/{}/'.format(u_data['uid']),
+            cookies={'session_id': session_from_username})
+
+        assert response.status == 200
+
+        # User logs in with another device and is now logged in to two devices
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({
+                'username_or_email': test_user_data['username'],
+                'password': test_user_data['password'],
+                'device_info': {
+                    'device_type': 'android',
+                    'channel': 'c76ff18e-9cb9-4c19-b9af-andr01d09876'
+                 }}))
+
+        android_cookies = response.cookies
+        android_session = android_cookies['session_id'].value
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(CHECK_SESSION_SQL)
+                devices = cur.fetchall()
+        assert len(devices) == 3
+        assert devices[0]['channel'] == '0'
+        assert devices[1]['channel'] == 'c76ff18e-9cb9-4c19-b9af-a39cae6848EE'
+        assert devices[2]['channel'] == 'c76ff18e-9cb9-4c19-b9af-andr01d09876'
+
+        # User can request info from their android devices
+        request, response = app.test_client.get(
+            '/users/{}/'.format(u_data['uid']),
+            cookies={'session_id': android_session})
+
+        assert response.status == 200
+
+        # User can request info from their iOS device
         request, response = app.test_client.get(
             '/users/{}/'.format(u_data['uid']),
             cookies={'session_id': session_from_username})
@@ -752,3 +823,113 @@ class TestUsers(TestErebor):
         assert response.status == 400
         assert response.json == {
             'errors': [{'code': 109, 'message': 'Invalid username'}]}
+
+    def test_get_sessions(self):
+        u_data, session_id = new_user(app)
+
+        async def mock_check_channel():
+            return {'ok': True}
+        flexmock(api.users).should_receive('check_channel').and_return(
+            mock_check_channel())
+
+        request, response = app.test_client.get(
+            '/users/{}/get_sessions'.format(u_data['uid']),
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+
+        request, response = app.test_client.post(
+            '/login', data=json.dumps({
+                'username_or_email': test_user_data['username'],
+                'password': test_user_data['password'],
+                'device_info': {
+                    'device_type': 'ios',
+                    'channel': 'ios_chann3l'
+                }
+            })
+        )
+
+        assert response.status == 200
+
+        request, response = app.test_client.get(
+            '/users/{}/get_sessions'.format(u_data['uid']),
+            cookies={'session_id': session_id})
+
+        assert response.status == 200
+
+    def test_destroy_sessions(self):
+        u_data, session_id = new_user(app)
+
+        async def mock_check_channel():
+            return {'ok': True}
+        flexmock(api.users).should_receive('check_channel').and_return(
+            mock_check_channel())
+
+        # User logs in with the android device and is now logged in
+        # to two devices
+        request, response = app.test_client.post(
+            '/login',
+            data=json.dumps({
+                'username_or_email': test_user_data['email_address'],
+                'password': test_user_data['password'],
+                'device_info': {
+                    'device_type': 'android',
+                    'channel': 'android_channel'
+                    }}))
+        CHECK_SESSION_SQL = """
+        SELECT * FROM devices
+        WHERE user_id = 1
+        AND session_id IS NOT NULL
+        """.strip()
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(CHECK_SESSION_SQL)
+                devices = cur.fetchall()
+        assert len(devices) == 2
+
+        request, response = app.test_client.post(
+            '/users/{}/destroy_sessions'.format(u_data['uid']),
+            cookies={'session_id': session_id}
+        )
+        assert response.status == 200
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(CHECK_SESSION_SQL)
+                devices = cur.fetchall()
+        assert len(devices) == 0
+
+    def test_register_device(self):
+        u_data, session_id = new_user(app)
+        flexmock(api.users).should_receive(
+            'check_channel').and_return({'ok': True})
+
+        request, response = app.test_client.post(
+            '/users/{}/register_device'.format(u_data['uid']),
+            cookies={'session_id': session_id},
+            data=json.dumps({'device_type': 'windows_phone',
+                             'channel': 't35t-ch4nn31-t0k3n'}))
+        e_data = response.json
+        assert response.status == 400
+        assert e_data == {'errors': [{'message': 'Unsupported device type',
+                                      'code': 117}]}
+
+        request, response = app.test_client.post(
+            '/users/{}/register_device'.format(u_data['uid']),
+            cookies={'session_id': session_id},
+            data=json.dumps({'device_type': 'ios',
+                             'channel': 't35t-ch4nn31-t0k3n'}))
+        assert response.status == 200
+
+        TEST_SQL = """
+        SELECT * FROM devices
+        WHERE session_id IS NOT NULL
+        """.strip()
+
+        with psycopg2.connect(**app.db) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(TEST_SQL)
+                devices = cur.fetchall()
+        assert devices[0]['user_id'] == 1
+        assert devices[0]['device_type'] == 'api'
+        assert devices[0]['channel'] == '0'

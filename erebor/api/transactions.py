@@ -4,7 +4,8 @@ from sanic import Blueprint, response
 
 from . import (email_pattern, e164_pattern,
                error_response, Email, limiter, authorized, send_sms,
-               get_symbol, get_balance)
+               get_symbol, get_balance, send_push_notification,
+               uuid_pattern, DEEPLINK_URL)
 
 # errors
 from . import (UNAUTHORIZED, MISSING_FIELDS, UNSUPPORTED_CURRENCY,
@@ -18,11 +19,12 @@ from . import (REGISTER_ADDRESS_SQL, SELECT_ADDRESS_SQL,
                UPDATE_TRANSACTION_CONFIRMATION_SQL,
                SELECT_EMAIL_FROM_USERNAME_OR_PHONE_SQL,
                SELECT_ALL_CONTACT_TRANSACTIONS, SELECT_RECIPIENT_STATUS_SQL,
-               SELECT_CONTACT_TRANSACTION_RENOTIFY)
+               SELECT_CONTACT_TRANSACTION_RENOTIFY, SELECT_DEVICE_BY_EMAIL_SQL,
+               SELECT_DEVICE_BY_USER_ID_SQL)
 
 transactions_bp = Blueprint('transactions')
 supported_currencies = ['ETH', 'BTC', 'BOAR']
-token_list = {'BOAR': '0x0d729b3e930521e95de0efbdcd573f4cdc697b82'}
+token_list = {'BOAR': '0xcba0b17f1afa724d2a19c040d7f90f0468b662ea'}
 
 
 async def public_key_for_user(recipient, currency, db):
@@ -139,6 +141,15 @@ async def contact_transaction(request):
         resp = {"success": ["Recipient has been notified of pending "
                             "transaction"]}
     else:
+        devices = await request['db'].fetch(
+            SELECT_DEVICE_BY_EMAIL_SQL, recipient_public_key['email_address'])
+        for device in devices:
+            send_push_notification(
+                "You received {amount} {currency}".format(
+                    amount=amount,
+                    currency=symbol if symbol is not None else currency),
+                device,
+                deep_link=(DEEPLINK_URL))
         resp = {'public_key': recipient_public_key[0]}
     # Record in DB
     transaction_uid = await record_contact_transaction(
@@ -172,6 +183,8 @@ async def contact_transaction_data(request, transaction_uid):
     scope='/contacts/transaction_confirmation/transaction_uid')
 @authorized()
 async def contact_transaction_confirmation(request, transaction_uid):
+    if not uuid_pattern.match(transaction_uid):
+        return error_response([INVALID_TRANSACTION_UID])
     confirmation = request.json
     if confirmation.keys() != {'confirmed', 'transaction_hash'}:
         return error_response([MISSING_FIELDS])
@@ -180,12 +193,33 @@ async def contact_transaction_confirmation(request, transaction_uid):
         return error_response([MISSING_FIELDS])
     transaction_hash = confirmation['transaction_hash']
     try:
-        await request['db'].execute(
+        updated_trans = await request['db'].fetchrow(
             UPDATE_TRANSACTION_CONFIRMATION_SQL,
             'confirmed' if confirmation_value else 'denied', transaction_hash,
             transaction_uid)
     except ValueError:
         return error_response([INVALID_TRANSACTION_UID])
+    finally:
+        if not updated_trans:
+            return error_response([INVALID_TRANSACTION_UID])
+        elif (updated_trans['transaction_type'] == 'request' and
+              not confirmation_value):
+            devices = await request['db'].fetch(
+                SELECT_DEVICE_BY_USER_ID_SQL, updated_trans['user_id']
+            )
+            message = (
+                "{recipient} has declined your "
+                "{amount} {currency} request".format(
+                    recipient=updated_trans['recipient'],
+                    amount=updated_trans['amount'],
+                    currency=updated_trans['currency']
+                )
+            )
+            for device in devices:
+                send_push_notification(
+                    message,
+                    device,
+                    deep_link=(DEEPLINK_URL))
     return (response.json({'success': 'You have confirmed the transaction'}) if
             confirmation_value else
             response.json({'success': 'You have denied the transaction'}))
@@ -263,8 +297,16 @@ async def request_funds(request):
         if user_record is None:
             return error_response([USER_NOT_FOUND])
         recipient = user_record['email_address']
-
-    # TODO: Include push notification here
+    devices = await request['db'].fetch(SELECT_DEVICE_BY_EMAIL_SQL,
+                                        recipient)
+    for device in devices:
+        send_push_notification(
+            "{} is requesting {} {} from you".format(
+                from_email_address, amount, currency),
+            device,
+            deep_link=(DEEPLINK_URL +
+                       'request_funds/?from={}&amount={}&currency={}'.format(
+                        from_email_address, amount, currency)))
 
     request_email = Email(
         recipient,

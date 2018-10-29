@@ -43,4 +43,16 @@ CREATE TABLE IF NOT EXISTS contact_transactions (
     amount FLOAT,
     created TIMESTAMP(0),
     status TEXT DEFAULT 'pending'
+    confirmed BOOL DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS devices (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    device_type e_device_type,
+    channel TEXT
+);
+
+CREATE TYPE e_device_type AS ENUM (
+    'ios',
+    'android'
 );

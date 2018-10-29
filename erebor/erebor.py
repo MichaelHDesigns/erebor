@@ -37,9 +37,11 @@ def authorized():
             if cookie:
                 user_ids = await db.fetchrow(USER_ID_SQL, cookie)
                 if user_ids is not None:
-                    request['session'] = {'user_id': user_ids['id'],
-                                          'user_uid': user_ids['uid']}
                     request['db'] = request.app.pg
+                    request['session'] = {'user_id': user_ids['user_id'],
+                                          'user_uid': user_ids['user_uid'],
+                                          'channel': user_ids['channel'],
+                                          'session_id': cookie}
                     res = await f(request, *args, **kwargs)
                     return res
                 else:

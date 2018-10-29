@@ -15,6 +15,9 @@ POST:
   - email_address
   - username
   - password
+  - device_info (dict containing device_type and channel)
+      - device_type (either ios or android)
+      - channel (the channel id provided by UA)
 
   Response: {'uid': UUID,
              'email_address': STRING,
@@ -83,11 +86,20 @@ POST (empty body)
 
   Response: {'success': ['Your session has been invalidated']}
 
+#### /destroy_sessions/
+
+POST (empty body)
+
+  Response: {'success': ['Your sessions across all devices have been invalidated']}
+
 #### /login/
 
 POST:
   - username_or_email
   - password
+  - device_info (dict containing device_type and channel)
+      - device_type (either ios or android)
+      - channel (the channel id provided by UA)
 
   Response: {'success': ['Login successful']}
   Response Cookie: session_id

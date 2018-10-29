@@ -1,5 +1,6 @@
 # flake-8: noqa
 import re
+import os
 
 from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,  # noqa
                            SMS_VERIFICATION_FAILED, INVALID_CREDENTIALS,
@@ -14,13 +15,15 @@ from erebor.errors import (error_response, MISSING_FIELDS, UNAUTHORIZED,  # noqa
                            INVALID_SWAP_SERVICE, USER_NOT_REGISTERED,
                            ALREADY_NOTIFIED, ALREADY_VOTED, INVALID_ARGS,
                            CURRENCY_ALREADY_SUPPORTED, VOTING_SUSPENDED,
-                           CAPTCHA_FAILED)
+                           CAPTCHA_FAILED, UNSUPPORTED_DEVICE,
+                           DEVICE_EXISTS, DEVICE_NOT_FOUND)
 from erebor.email import Email  # noqa
 from erebor.render import (unsubscribe_template, result_template, # noqa
                            password_template, RESULT_ACTIONS)
 from erebor.erebor import authorized, limiter # noqa
 from erebor.blockchain import get_symbol, get_balance # noqa
 from erebor.utils import fetch, post, send_sms, create_zendesk_ticket, verify # noqa
+from erebor.ua import check_channel, send_push_notification  # noqa
 from erebor.sql import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,  # noqa
                      ACTIVATE_USER_SQL, PASSWORD_ACCESS_SQL, SET_2FA_CODE_SQL,
                      LOGIN_SQL, VERIFY_SMS_LOGIN, LOGOUT_SQL,
@@ -41,8 +44,13 @@ from erebor.sql import (CREATE_USER_SQL, SELECT_USER_SQL, UPDATE_USER_SQL,  # no
                      SELECT_RECIPIENT_STATUS_SQL, INSERT_VOTE_SQL,
                      SELECT_ALL_VOTES_SQL, SELECT_ALL_SUPPORTED_COINS_SQL,
                      SELECT_ALL_VOTES_INTERVAL_SQL, PRE_REGISTER_USER_SQL,
-                     ACTIVATE_PRE_REG_SQL)
+                     ACTIVATE_PRE_REG_SQL,
+                     SELECT_DEVICE_BY_EMAIL_SQL, REGISTER_DEVICE_SQL,
+                     GET_SESSIONS_SQL, DESTROY_SESSIONS_SQL,
+                     SELECT_DEVICE_BY_USER_ID_SQL)
 
+
+DEEPLINK_URL = str(os.environ.get('DEEPLINK_URL'))
 
 email_pattern = re.compile('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$')
 username_pattern = re.compile('[^\w]')

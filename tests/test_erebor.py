@@ -92,6 +92,5 @@ class TestResources(TestErebor):
             '/jsonrpc',
             data=json.dumps(payload),
             cookies={'session_id': session_id})
-
         assert response.status == 200
         assert response.json == json_rpc_mock_resp_data
