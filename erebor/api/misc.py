@@ -12,8 +12,7 @@ from . import (INSERT_VOTE_SQL, SELECT_ALL_VOTES_SQL,
                SELECT_ALL_SUPPORTED_COINS_SQL, SELECT_ALL_VOTES_INTERVAL_SQL)
 
 from . import (RESULT_ACTIONS, INVALID_PLATFORM, MISSING_FIELDS, ALREADY_VOTED,
-               UNSUPPORTED_CURRENCY, INVALID_ARGS, CURRENCY_ALREADY_SUPPORTED,
-               VOTING_SUSPENDED, CAPTCHA_FAILED)
+               UNSUPPORTED_CURRENCY, INVALID_ARGS, CAPTCHA_FAILED)
 
 
 misc_bp = Blueprint('misc')
@@ -91,12 +90,6 @@ async def vote(request):
         if verify_score and verify_score < 0.5:
             return error_response([CAPTCHA_FAILED])
         symbol = request.json['symbol']
-        if symbol in ['BTC', 'ETH']:
-            return error_response([CURRENCY_ALREADY_SUPPORTED])
-        elif symbol in []:
-            ERROR = VOTING_SUSPENDED.copy()
-            ERROR['message'] = ERROR['message'].format(symbol)
-            return error_response([ERROR])
         try:
             insert = await db.execute(INSERT_VOTE_SQL,
                                       symbol, request.remote_addr)

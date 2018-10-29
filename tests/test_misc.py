@@ -57,7 +57,7 @@ class TestMisc(TestErebor):
 
         request, response = app.test_client.post(
             '/vote', data=json.dumps({'symbol': 'BTC', 'captcha': 'c4ptch4'}))
-        assert response.status == 403
+        assert response.status == 200
 
         request, response = app.test_client.post(
             '/vote', data=json.dumps({'symbol': 'ZRX', 'captcha': 'c4ptch4'}))
@@ -67,7 +67,7 @@ class TestMisc(TestErebor):
 
         request, response = app.test_client.get('/vote')
         assert response.status == 200
-        assert len(response.json['data']) == 3
+        assert len(response.json['data']) == 4
         for item in response.json['data']:
             assert item['votes'] == 1
 
